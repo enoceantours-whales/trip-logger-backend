@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Enocean Tours — Trip Logger</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #0c4a6e;
+      --blue: #0ea5e9;
+      --dark: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--dark);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1e3a8a, var(--navy));
+      padding: 20px;
+      text-align: center;
+      border-bottom: 3px solid var(--blue);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .header-logo {
+      width: 56px;
+      height: 56px;
+      background: white;
+      border-radius: 8px;
+      margin: 0 auto 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .header-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .header p {
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      margin-top: 2px;
+    }
+
+    /* ── Screens ── */
+    .screen { display: none; flex: 1; padding: 20px; overflow-y: auto; }
+    .screen.active { display: block; }
+
+    /* ── Section ── */
+    .section { margin-bottom: 28px; }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Form ── */
+    .field { margin-bottom: 14px; }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 13px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 16px;
+      appearance: none;
+      -webkit-appearance: none;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.1s;
+      letter-spacing: 0.3px;
+    }
+
+    .btn:active { transform: scale(0.98); opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: var(--blue); color: #000; }
+    .btn-outline { background: transparent; color: var(--blue); border: 1.5px solid var(--blue); margin-top: 10px; }
+    .btn-danger { background: var(--danger); color: #fff; margin-top: 10px; }
+
+    /* ── Status Bar ── */
+    .status-bar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--blue);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .status-item { font-size: 13px; }
+    .status-item span { color: var(--blue); font-weight: 600; }
+
+    /* ── Sighting List ── */
+    .sighting-list {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .sighting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sighting-row:last-child { border-bottom: none; }
+
+    .sighting-species {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--blue);
+    }
+
+    .sighting-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .sighting-badge {
+      background: rgba(14,165,233,0.15);
+      color: var(--blue);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .empty {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* ── Summary Cards ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .summary-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--navy);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .summary-card .card-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-card .card-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--blue);
+      margin-top: 4px;
+    }
+
+    /* ── Photo Upload ── */
+    .photo-drop {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .photo-drop:hover {
+      border-color: var(--blue);
+      background: rgba(14,165,233,0.05);
+    }
+
+    .photo-drop p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .photo-drop strong { color: var(--blue); }
+    .photo-drop input { display: none; }
+
+    .photo-preview {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-top: 12px;
+      display: none;
+    }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 100;
+      transition: transform 0.3s ease;
+      white-space: nowrap;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--success); color: var(--success); }
+    .toast.error { border-color: var(--danger); color: var(--danger); }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 14px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">
+      <img src="https://enoceantours.com/s/Enocean_Tours_logo-05.png" alt="Enocean Tours" onerror="this.style.display='none'">
+    </div>
+    <h1>ENOCEAN TOURS</h1>
+    <p>Trip Logger</p>
+  </div>
+
+  <!-- ── Screen: Start ── -->
+  <div class="screen active" id="screenStart">
+    <div class="section">
+      <div class="section-label">New Trip</div>
+
+      <div class="field">
+        <label>Passenger Count</label>
+        <input type="number" id="inputPassengers" min="1" max="6" value="6" inputmode="numeric">
+      </div>
+
+      <div class="field">
+        <label>Water Temperature (°F)</label>
+        <input type="number" id="inputWaterTemp" placeholder="e.g. 55" step="0.1" inputmode="decimal">
+      </div>
+
+      <div class="field">
+        <label>Visibility</label>
+        <select id="inputVisibility">
+          <option value="">Select...</option>
+          <option>Excellent</option>
+          <option>Good</option>
+          <option>Fair</option>
+          <option>Poor</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Sea Conditions</label>
+        <select id="inputConditions">
+          <option value="">Select...</option>
+          <option>Calm</option>
+          <option>Slight Chop</option>
+          <option>Moderate Chop</option>
+          <option>Rough</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" onclick="startTrip()">Start Trip</button>
+    </div>
+  </div>
+
+  <!-- ── Screen: Logging ── -->
+  <div class="screen" id="screenLog">
+
+    <div class="status-bar">
+      <div class="status-item">Status: <span>Active</span></div>
+      <div class="status-item">Duration: <span id="statDuration">0m</span></div>
+      <div class="status-item" style="grid-column:span 2;">GPS: <span id="statGPS">Acquiring...</span></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Log Sighting</div>
+
+      <div class="field">
+        <label>Species</label>
+        <select id="inputSpecies">
+          <option value="">Select species...</option>
+          <option>Humpback Whale</option>
+          <option>Blue Whale</option>
+          <option>Gray Whale</option>
+          <option>Orca</option>
+          <option>Dolphin</option>
+          <option>Sea Lion</option>
+          <option>Harbor Seal</option>
+          <option>Sea Otter</option>
+          <option>Seabird</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Count</label>
+        <input type="number" id="inputCount" min="1" value="1" inputmode="numeric">
+      </div>
+
+      <div class="field">
+        <label>Time</label>
+        <input type="time" id="inputTime">
+      </div>
+
+      <button class="btn btn-primary" onclick="logSighting()">Log Sighting</button>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Sightings (<span id="sightingCount">0</span>)</div>
+      <div class="sighting-list" id="sightingList">
+        <div class="empty">No sightings logged yet</div>
+      </div>
+    </div>
+
+    <button class="btn btn-outline" onclick="confirmEndTrip()">End Trip</button>
+  </div>
+
+  <!-- ── Screen: Review & Send ── -->
+  <div class="screen" id="screenReview">
+    <div class="section">
+      <div class="section-label">Trip Summary</div>
+      <div class="summary-grid">
+        <div class="summary-card"><div class="card-label">Date</div><div class="card-value" id="revDate"></div></div>
+        <div class="summary-card"><div class="card-label">Duration</div><div class="card-value" id="revDuration"></div></div>
+        <div class="summary-card"><div class="card-label">Passengers</div><div class="card-value" id="revPassengers"></div></div>
+        <div class="summary-card"><div class="card-label">Sightings</div><div class="card-value" id="revSightings"></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Group Photo</div>
+      <div class="photo-drop" onclick="document.getElementById('inputPhoto').click()">
+        <strong>Tap to add photo</strong>
+        <p>Upload your group photo</p>
+        <input type="file" id="inputPhoto" accept="image/*" onchange="handlePhoto(event)">
+        <img id="photoPreview" class="photo-preview">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Send Report to Guest</div>
+      <div class="field">
+        <label>Guest Email</label>
+        <input type="email" id="inputGuestEmail" placeholder="guest@email.com" inputmode="email" autocomplete="email">
+      </div>
+      <button class="btn btn-primary" id="btnSend" onclick="sendReport()">Send Trip Report</button>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Sightings</div>
+      <div class="sighting-list" id="reviewSightingList"></div>
+    </div>
+
+    <button class="btn btn-outline" onclick="startNewTrip()">Start New Trip</button>
+    <button class="btn btn-danger" onclick="discardTrip()">Discard Trip</button>
+  </div>
+
+  <div class="footer">Small by design. Unforgettable by nature.</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // ─── State ───────────────────────────────────────────────────────────────────
+
+  const API_URL = '/api/send-report'; // Vercel routes this correctly
+
+  let trip = newTripState();
+
+  function newTripState() {
+    return {
+      startTime: null,
+      endTime: null,
+      passengers: 6,
+      waterTemp: '',
+      visibility: '',
+      conditions: '',
+      sightings: [],
+      lastLat: null,
+      lastLng: null,
+      photoData: null,
+    };
+  }
+
+  let gpsWatcher = null;
+  let durationTimer = null;
+
+  // ─── Screens ─────────────────────────────────────────────────────────────────
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  // ─── Trip Start ──────────────────────────────────────────────────────────────
+
+  function startTrip() {
+    const passengers = document.getElementById('inputPassengers').value;
+    if (!passengers || passengers < 1) return toast('Enter passenger count', 'error');
+
+    trip.startTime = new Date();
+    trip.passengers = parseInt(passengers);
+    trip.waterTemp = document.getElementById('inputWaterTemp').value;
+    trip.visibility = document.getElementById('inputVisibility').value;
+    trip.conditions = document.getElementById('inputConditions').value;
+
+    setCurrentTime();
+    startGPS();
+    startDurationTimer();
+    showScreen('screenLog');
+  }
+
+  function setCurrentTime() {
+    const now = new Date();
+    document.getElementById('inputTime').value =
+      String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  }
+
+  // ─── GPS ─────────────────────────────────────────────────────────────────────
+
+  function startGPS() {
+    if (!navigator.geolocation) {
+      document.getElementById('statGPS').textContent = 'Not supported';
+      return;
+    }
+
+    gpsWatcher = navigator.geolocation.watchPosition(
+      pos => {
+        trip.lastLat = pos.coords.latitude;
+        trip.lastLng = pos.coords.longitude;
+        document.getElementById('statGPS').textContent =
+          `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+      },
+      err => {
+        document.getElementById('statGPS').textContent = 'Error — check permissions';
+        console.error('GPS error:', err);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+  }
+
+  function stopGPS() {
+    if (gpsWatcher !== null) {
+      navigator.geolocation.clearWatch(gpsWatcher);
+      gpsWatcher = null;
+    }
+  }
+
+  // ─── Duration Timer ──────────────────────────────────────────────────────────
+
+  function startDurationTimer() {
+    durationTimer = setInterval(() => {
+      const ms = Date.now() - trip.startTime;
+      const mins = Math.floor(ms / 60000);
+      const hrs = Math.floor(mins / 60);
+      document.getElementById('statDuration').textContent =
+        hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
+    }, 15000);
+  }
+
+  function stopDurationTimer() {
+    clearInterval(durationTimer);
+    durationTimer = null;
+  }
+
+  // ─── Log Sighting ────────────────────────────────────────────────────────────
+
+  function logSighting() {
+    const species = document.getElementById('inputSpecies').value;
+    const count = document.getElementById('inputCount').value;
+    const time = document.getElementById('inputTime').value;
+
+    if (!species) return toast('Select a species', 'error');
+    if (!count || count < 1) return toast('Enter a count', 'error');
+    if (!time) return toast('Set a time', 'error');
+
+    trip.sightings.push({
+      species,
+      count: parseInt(count),
+      time,
+      lat: trip.lastLat,
+      lng: trip.lastLng,
+    });
+
+    // Reset form
+    document.getElementById('inputSpecies').value = '';
+    document.getElementById('inputCount').value = '1';
+    setCurrentTime();
+
+    renderSightingList();
+    toast(`${species} logged`, 'success');
+  }
+
+  function renderSightingList() {
+    const list = document.getElementById('sightingList');
+    const count = document.getElementById('sightingCount');
+    count.textContent = trip.sightings.length;
+
+    if (trip.sightings.length === 0) {
+      list.innerHTML = '<div class="empty">No sightings logged yet</div>';
+      return;
+    }
+
+    list.innerHTML = trip.sightings.map((s, i) => `
+      <div class="sighting-row">
+        <div>
+          <div class="sighting-species">${s.species}</div>
+          <div class="sighting-meta">${s.time}${s.lat ? ` • ${s.lat.toFixed(3)}, ${s.lng.toFixed(3)}` : ''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="sighting-badge">×${s.count}</div>
+          <button onclick="removeSighting(${i})" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;padding:0;">×</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function removeSighting(index) {
+    trip.sightings.splice(index, 1);
+    renderSightingList();
+  }
+
+  // ─── End Trip ────────────────────────────────────────────────────────────────
+
+  function confirmEndTrip() {
+    if (trip.sightings.length === 0) {
+      if (!confirm('No sightings logged. End trip anyway?')) return;
+    }
+    endTrip();
+  }
+
+  function endTrip() {
+    trip.endTime = new Date();
+    stopGPS();
+    stopDurationTimer();
+
+    // Populate review screen
+    document.getElementById('revDate').textContent =
+      trip.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const ms = trip.endTime - trip.startTime;
+    const mins = Math.floor(ms / 60000);
+    const hrs = Math.floor(mins / 60);
+    document.getElementById('revDuration').textContent =
+      hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
+
+    document.getElementById('revPassengers').textContent = trip.passengers;
+    document.getElementById('revSightings').textContent = trip.sightings.length;
+
+    // Review sightings list
+    const list = document.getElementById('reviewSightingList');
+    list.innerHTML = trip.sightings.length === 0
+      ? '<div class="empty">No sightings logged</div>'
+      : trip.sightings.map(s => `
+          <div class="sighting-row">
+            <div>
+              <div class="sighting-species">${s.species}</div>
+              <div class="sighting-meta">${s.time}${s.lat ? ` • ${s.lat.toFixed(3)}, ${s.lng.toFixed(3)}` : ''}</div>
+            </div>
+            <div class="sighting-badge">×${s.count}</div>
+          </div>
+        `).join('');
+
+    showScreen('screenReview');
+  }
+
+  // ─── Photo ───────────────────────────────────────────────────────────────────
+
+  function handlePhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      trip.photoData = e.target.result;
+      const preview = document.getElementById('photoPreview');
+      preview.src = trip.photoData;
+      preview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ─── Send Report ─────────────────────────────────────────────────────────────
+
+  async function sendReport() {
+    const email = document.getElementById('inputGuestEmail').value.trim();
+
+    if (!email) return toast('Enter guest email', 'error');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return toast('Enter a valid email', 'error');
+
+    const btn = document.getElementById('btnSend');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Sending...';
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripData: trip,
+          guestEmail: email,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || 'Failed to send');
+
+      toast('Report sent!', 'success');
+      btn.innerHTML = '✓ Report Sent';
+      btn.style.background = 'var(--success)';
+
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Failed to send', 'error');
+      btn.disabled = false;
+      btn.innerHTML = 'Send Trip Report';
+    }
+  }
+
+  // ─── New Trip / Discard ──────────────────────────────────────────────────────
+
+  function startNewTrip() {
+    trip = newTripState();
+    document.getElementById('inputPhoto').value = '';
+    document.getElementById('photoPreview').style.display = 'none';
+    document.getElementById('inputGuestEmail').value = '';
+    document.getElementById('btnSend').innerHTML = 'Send Trip Report';
+    document.getElementById('btnSend').disabled = false;
+    document.getElementById('btnSend').style.background = '';
+    showScreen('screenStart');
+  }
+
+  function discardTrip() {
+    if (confirm('Discard this trip? This cannot be undone.')) startNewTrip();
+  }
+
+  // ─── Toast ───────────────────────────────────────────────────────────────────
+
+  let toastTimer;
+  function toast(msg, type = 'success') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `toast ${type} show`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  }
+</script>
+</body>
+</html>
