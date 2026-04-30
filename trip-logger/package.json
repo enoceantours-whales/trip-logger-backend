@@ -1,18 +1,12 @@
 {
   "name": "enocean-trip-logger",
   "version": "1.0.0",
-  "description": "Enocean Tours trip logging and guest email system",
-  "main": "index.js",
-  "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel --prod"
-  },
   "dependencies": {
     "@mailchimp/mailchimp_marketing": "^3.0.80",
-    "pdfkit": "^0.15.0",
-    "cors": "^2.8.5"
+    "nodemailer": "^6.9.9",
+    "pdfkit": "^0.15.0"
   },
   "engines": {
-    "node": "18.x"
+    "node": "20.x"
   }
 }
