@@ -76,13 +76,8 @@ function fetchURL(url) {
 async function generatePDF(tripData) {
   const mapImageBuffer = await fetchMapImage(tripData.sightings);
 
-  // Fetch Anton font (bold condensed - matches Enocean brand)
-  let antonFont = null;
-  try {
-    antonFont = await fetchURL('https://fonts.gstatic.com/s/anton/v25/1Ptgg87LROyAm0K08i4gS7lu.woff2');
-  } catch(e) {
-    console.log('Font fetch failed, using Helvetica');
-  }
+  // No custom font - using Helvetica-Bold
+  const antonFont = null;
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -97,10 +92,7 @@ async function generatePDF(tripData) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Register font if loaded
-    if (antonFont) {
-      try { doc.registerFont('Anton', antonFont); } catch(e) {}
-    }
+    // Using built-in fonts only
 
     const BLACK  = '#000000';
     const WHITE  = '#ffffff';
@@ -113,7 +105,7 @@ async function generatePDF(tripData) {
     const M  = 48;   // margin
     const CW = W - M * 2;
 
-    const bold   = antonFont ? 'Anton' : 'Helvetica-Bold';
+    const bold   = 'Helvetica-Bold';
     const reg    = 'Helvetica';
     const semib  = 'Helvetica-Bold';
 
