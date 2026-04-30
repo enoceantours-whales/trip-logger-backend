@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Enocean Logger">
+  <meta name="theme-color" content="#0c4a6e">
+  <link rel="manifest" href="/manifest.json">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Enocean Tours — Trip Logger</title>
   <style>
@@ -515,6 +520,7 @@
     setCurrentTime();
     startGPS();
     startDurationTimer();
+    saveTrip();
     showScreen('screenLog');
   }
 
@@ -598,6 +604,7 @@
     document.getElementById('inputNotes').value = '';
     setCurrentTime();
 
+    saveTrip();
     renderSightingList();
     toast(`${species} logged`, 'success');
   }
@@ -672,6 +679,7 @@
           </div>
         `).join('');
 
+    saveTrip();
     showScreen('screenReview');
   }
 
@@ -746,6 +754,7 @@
   // ─── New Trip / Discard ──────────────────────────────────────────────────────
 
   function startNewTrip() {
+    clearSavedTrip();
     trip = newTripState();
     document.getElementById('inputPhoto').value = '';
     document.getElementById('photoPreview').style.display = 'none';
@@ -770,6 +779,67 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
   }
+
+  // ─── PWA Service Worker Registration ─────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.log('SW registration failed:', err);
+      });
+    });
+  }
+
+  // ─── Local Storage — Auto Save & Restore ─────────────────────────────────────
+
+  const STORAGE_KEY = 'enocean_active_trip';
+
+  function saveTrip() {
+    if (!trip.startTime) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trip));
+    } catch(e) {
+      console.log('Save error:', e);
+    }
+  }
+
+  function restoreTrip() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+
+      const restored = JSON.parse(saved);
+      if (!restored.startTime) return;
+
+      // Convert date strings back to Date objects
+      restored.startTime = new Date(restored.startTime);
+      if (restored.endTime) restored.endTime = new Date(restored.endTime);
+
+      trip = restored;
+
+      // If trip was active (no endTime), resume it
+      if (!trip.endTime) {
+        setCurrentTime();
+        startGPS();
+        startDurationTimer();
+        renderSightingList();
+        showScreen('screenLog');
+        toast('Trip restored', 'success');
+      } else {
+        // Trip was ended, go to review screen
+        endTrip();
+      }
+    } catch(e) {
+      console.log('Restore error:', e);
+    }
+  }
+
+  function clearSavedTrip() {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+
+  // Restore on page load
+  restoreTrip();
+
 </script>
 </body>
 </html>
