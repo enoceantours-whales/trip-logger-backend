@@ -123,30 +123,25 @@ async function generatePDF(tripData) {
 
     doc.addPage({ size: 'LETTER', margin: 0 });
 
-    // ── HEADER BAND ──
+    // ── HEADER ──
     const headerH = 72;
     doc.rect(0, 0, W, headerH).fill(BLACK);
 
-    // Logo circle left
     doc.circle(M + 24, headerH / 2, 22).fill(WHITE);
-    doc.fillColor(BLACK).font(bold).fontSize(6)
-       .text('ENOCEAN', M + 6, headerH/2 - 6, { lineBreak: false });
-    doc.fillColor(BLACK).font(bold).fontSize(5)
-       .text('TOURS', M + 10, headerH/2 + 2, { lineBreak: false });
+    doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 6, headerH/2 - 6, { lineBreak: false });
+    doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 10, headerH/2 + 2, { lineBreak: false });
 
-    // Center title
     doc.fillColor(WHITE).font(bold).fontSize(18)
        .text('TRIP REPORT', 0, headerH/2 - 10, { align: 'center', width: W, lineBreak: false, characterSpacing: 3 });
 
-    // Date right aligned
     doc.fillColor(WHITE).font(reg).fontSize(8)
        .text(date.toUpperCase(), M, headerH/2 + 10, { align: 'right', width: CW, lineBreak: false, characterSpacing: 0.5 });
 
     let y = headerH;
 
-    // ── PHOTO (left) + STATS (right) side by side ──
+    // ── PHOTO (left) + STATS (right) ──
     const photoW = Math.round(W * 0.58);
-    const photoH = 220;
+    const photoH = 200;
 
     if (tripData.photoData) {
       try {
@@ -165,12 +160,11 @@ async function generatePDF(tripData) {
          .text('No photo', 0, y + photoH/2 - 6, { align: 'center', width: photoW, lineBreak: false });
     }
 
-    // Stats panel (right of photo)
+    // Stats panel right
     const statsX = photoW + 1;
     const statsW = W - photoW - 1;
     doc.rect(statsX, y, statsW, photoH).fill(GRAY);
 
-    // Vertical stack of stats in right panel
     const statItems = [
       { label: 'DURATION',   value: duration },
       { label: 'PASSENGERS', value: String(tripData.passengers) },
@@ -188,8 +182,9 @@ async function generatePDF(tripData) {
          .text(stat.value, statsX + 16, sy + 22, { width: statsW - 24, lineBreak: false });
     });
 
-    // Conditions strip
     y += photoH;
+
+    // ── CONDITIONS STRIP ──
     doc.rect(0, y, W, 26).fill(BLACK);
     const condParts = [];
     if (tripData.visibility) condParts.push('Visibility: ' + tripData.visibility);
@@ -199,91 +194,78 @@ async function generatePDF(tripData) {
        .text(condParts.join('   •   ') || 'Monterey Bay', 0, y + 8, { align: 'center', width: W, lineBreak: false, characterSpacing: 0.8 });
     y += 26;
 
-    // ── MAP (left) + SIGHTINGS TABLE (right) ──
-    const bottomH = H - y - 44; // leave footer
-    const mapColW = Math.round(W * 0.52);
-    const tableColW = W - mapColW;
-
-    // Map
+    // ── MAP — full width horizontal ──
+    const mapH = 180;
     if (mapImageBuffer) {
       try {
-        doc.image(mapImageBuffer, 0, y, { width: mapColW, height: bottomH });
+        doc.image(mapImageBuffer, 0, y, { width: W, height: mapH });
       } catch(e) {
-        doc.rect(0, y, mapColW, bottomH).fill('#ddd');
+        doc.rect(0, y, W, mapH).fill('#ddd');
         console.error('Map error:', e.message);
       }
     } else {
-      doc.rect(0, y, mapColW, bottomH).fill('#e5e5e5');
+      doc.rect(0, y, W, mapH).fill('#e5e5e5');
       doc.fillColor(MID).font(reg).fontSize(9)
-         .text('Map unavailable', 0, y + bottomH/2, { align: 'center', width: mapColW, lineBreak: false });
+         .text('Map unavailable', 0, y + mapH/2, { align: 'center', width: W, lineBreak: false });
     }
+    y += mapH;
 
-    // Thin divider between map and table
-    doc.rect(mapColW, y, 1, bottomH).fill(BLACK);
-
-    // Sightings table (right column)
-    const tx = mapColW + 1;
-    const tw = tableColW - 1;
-    const tp = 10; // padding inside table column
-
-    // Section heading
-    let ty = y + 14;
+    // ── SIGHTINGS LIST — full width below map ──
+    // Thin rule + heading
+    y += 12;
     doc.fillColor(BLACK).font(bold).fontSize(9)
-       .text('SIGHTINGS LOG', tx + tp, ty, { width: tw - tp * 2, lineBreak: false, characterSpacing: 1.2 });
-    ty += 14;
-    doc.rect(tx + tp, ty, tw - tp * 2, 1).fill(BLACK);
-    ty += 8;
+       .text('SIGHTINGS LOG', M, y, { lineBreak: false, characterSpacing: 1.5 });
+    y += 13;
+    doc.rect(M, y, CW, 1).fill(BLACK);
+    y += 8;
 
     // Column headers
-    const tcols = [tw - tp * 2]; // single wide column for species
-    doc.fillColor(MID).font(bold).fontSize(7)
-       .text('SPECIES / COUNT / TIME', tx + tp, ty, { width: tw - tp * 2, lineBreak: false, characterSpacing: 0.8 });
-    ty += 14;
+    const cols = [200, 60, 60, CW - 320];
+    const headers = ['SPECIES', 'COUNT', 'TIME', 'NOTES & LOCATION'];
+    let cx = M;
+    headers.forEach((h, i) => {
+      doc.fillColor(MID).font(bold).fontSize(7)
+         .text(h, cx, y, { width: cols[i], lineBreak: false, characterSpacing: 0.8 });
+      cx += cols[i];
+    });
+    y += 14;
+    doc.rect(M, y, CW, 0.5).fill(RULE);
+    y += 6;
 
+    // Sighting rows
     if (tripData.sightings.length === 0) {
-      doc.fillColor(MID).font(reg).fontSize(9)
-         .text('No sightings logged', tx + tp, ty, { lineBreak: false });
+      doc.fillColor(MID).font(reg).fontSize(9).text('No sightings logged', M, y, { lineBreak: false });
     } else {
       tripData.sightings.forEach((s, i) => {
-        // Species name
+        const bg = i % 2 === 0 ? WHITE : GRAY;
+        const rowH = 28;
+        doc.rect(M - 4, y - 4, CW + 8, rowH).fill(bg);
+        doc.rect(M - 4, y - 4, 3, rowH).fill(BLACK);
+
+        // Species
         doc.fillColor(BLACK).font(bold).fontSize(9)
-           .text(s.species.toUpperCase(), tx + tp, ty, { width: tw - tp * 2, lineBreak: false });
-        ty += 13;
+           .text(s.species.toUpperCase(), M, y, { width: cols[0] - 8, lineBreak: false });
 
-        // Count + Time on same line
-        doc.fillColor(MID).font(reg).fontSize(8)
-           .text('×' + s.count + '   ' + s.time, tx + tp, ty, { width: tw - tp * 2, lineBreak: false });
-        ty += 11;
+        // Count
+        doc.fillColor(BLACK).font(reg).fontSize(9)
+           .text('×' + s.count, M + cols[0], y, { width: cols[1], lineBreak: false });
 
-        // Notes if present
-        if (s.notes) {
-          doc.fillColor(MID).font(reg).fontSize(7).fillOpacity(0.8)
-             .text(s.notes, tx + tp, ty, { width: tw - tp * 2, lineBreak: true });
-          doc.fillOpacity(1);
-          ty = doc.y + 4;
+        // Time
+        doc.fillColor(BLACK).font(reg).fontSize(9)
+           .text(s.time, M + cols[0] + cols[1], y, { width: cols[2], lineBreak: false });
+
+        // Notes + coords inline
+        const notesX = M + cols[0] + cols[1] + cols[2];
+        let noteText = s.notes || '';
+        if (s.lat && s.lng) {
+          const coords = s.lat.toFixed(4) + ', ' + s.lng.toFixed(4);
+          noteText = noteText ? noteText + '  •  ' + coords : coords;
         }
+        doc.fillColor(MID).font(reg).fontSize(8)
+           .text(noteText, notesX, y, { width: cols[3], lineBreak: false });
 
-        // Row divider
-        ty += 4;
-        doc.rect(tx + tp, ty, tw - tp * 2, 0.5).fill(RULE);
-        ty += 8;
-      });
-    }
-
-    // Sighting location legend below table
-    const withCoords = tripData.sightings.filter(s => s.lat && s.lng);
-    if (withCoords.length > 0) {
-      ty += 6;
-      doc.fillColor(MID).font(bold).fontSize(7)
-         .text('LOCATIONS', tx + tp, ty, { width: tw - tp * 2, lineBreak: false, characterSpacing: 1 });
-      ty += 12;
-      withCoords.forEach((s, i) => {
-        doc.fillColor(BLACK).font(reg).fontSize(7)
-           .text((i + 1) + '  ' + s.species.toUpperCase(), tx + tp, ty, { width: tw - tp * 2, lineBreak: false });
-        ty += 12;
-        doc.fillColor(MID).font(reg).fontSize(6)
-           .text(s.lat.toFixed(4) + ', ' + s.lng.toFixed(4), tx + tp, ty, { width: tw - tp * 2, lineBreak: false });
-        ty += 10;
+        y += rowH;
+        doc.rect(M, y - 4, CW, 0.5).fill(RULE);
       });
     }
 
@@ -295,6 +277,7 @@ async function generatePDF(tripData) {
     doc.end();
   });
 }
+
 
 
 
