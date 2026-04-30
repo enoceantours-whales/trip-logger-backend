@@ -34,27 +34,43 @@ function getFormattedDuration(startTime, endTime) {
 
 // ─── Fetch Google Maps Static Image ──────────────────────────────────────────
 
+function getBayZoom(sightings) {
+  if (sightings.length <= 1) return 11;
+  const lats = sightings.map(s => s.lat);
+  const lngs = sightings.map(s => s.lng);
+  const latSpan = Math.max(...lats) - Math.min(...lats);
+  const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+  const span = Math.max(latSpan, lngSpan);
+  if (span > 0.3) return 9;
+  if (span > 0.15) return 10;
+  if (span > 0.07) return 11;
+  return 12;
+}
+
 function fetchMapImage(sightings) {
   return new Promise((resolve) => {
-    const sightingsWithCoords = sightings.filter(s => s.lat && s.lng);
+    const withCoords = sightings.filter(s => s.lat && s.lng);
 
-    if (sightingsWithCoords.length === 0) {
-      // Default center of Monterey Bay
-      const url = `https://maps.googleapis.com/maps/api/staticmap?center=36.8,-122.0&zoom=10&size=640x400&scale=2&maptype=satellite&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    // Default: full Monterey Bay view matching the canyon/coastline view
+    if (withCoords.length === 0) {
+      const url = `https://maps.googleapis.com/maps/api/staticmap?center=36.82,-122.05&zoom=10&size=640x400&scale=2&maptype=satellite&key=${process.env.GOOGLE_MAPS_API_KEY}`;
       fetchURL(url).then(resolve).catch(() => resolve(null));
       return;
     }
 
-    // Build markers for each sighting
-    const markers = sightingsWithCoords.map((s, i) =>
-      `markers=color:0x0ea5e9|label:${i + 1}|${s.lat},${s.lng}`
+    // Dynamic zoom based on spread of sightings
+    const zoom = getBayZoom(withCoords);
+
+    // Center on average coords
+    const avgLat = withCoords.reduce((sum, s) => sum + s.lat, 0) / withCoords.length;
+    const avgLng = withCoords.reduce((sum, s) => sum + s.lng, 0) / withCoords.length;
+
+    // White markers with black labels for bold B&W aesthetic
+    const markers = withCoords.map((s, i) =>
+      `markers=color:white|label:${i + 1}|${s.lat},${s.lng}`
     ).join('&');
 
-    // Center on average of sighting coords
-    const avgLat = sightingsWithCoords.reduce((sum, s) => sum + s.lat, 0) / sightingsWithCoords.length;
-    const avgLng = sightingsWithCoords.reduce((sum, s) => sum + s.lng, 0) / sightingsWithCoords.length;
-
-    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${avgLat},${avgLng}&zoom=11&size=640x400&scale=2&maptype=satellite&${markers}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${avgLat},${avgLng}&zoom=${zoom}&size=640x400&scale=2&maptype=satellite&${markers}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
     fetchURL(url).then(resolve).catch(() => resolve(null));
   });
