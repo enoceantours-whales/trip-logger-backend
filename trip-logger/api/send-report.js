@@ -165,11 +165,12 @@ async function generatePDF(tripData) {
     const statsW = W - photoW - 1;
     doc.rect(statsX, y, statsW, photoH).fill(GRAY);
 
+    const distanceNM = tripData.distanceNM ? tripData.distanceNM.toFixed(2) + ' NM' : 'N/A';
     const statItems = [
       { label: 'DURATION',   value: duration },
+      { label: 'DISTANCE',   value: distanceNM },
       { label: 'PASSENGERS', value: String(tripData.passengers) },
       { label: 'SIGHTINGS',  value: String(tripData.sightings.length) },
-      { label: 'WATER TEMP', value: tripData.waterTemp ? tripData.waterTemp + '°F' : 'N/A' },
     ];
 
     const statBlockH = photoH / statItems.length;
