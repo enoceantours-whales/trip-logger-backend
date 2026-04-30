@@ -1,7 +1,8 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/sw.js", "destination": "/public/sw.js" },
-    { "source": "/manifest.json", "destination": "/public/manifest.json" }
+    { "source": "/sw.js", "destination": "/trip-logger/Public/sw.js" },
+    { "source": "/manifest.json", "destination": "/trip-logger/Public/manifest.json" },
+    { "source": "/public/(.*)", "destination": "/trip-logger/Public/$1" }
   ]
 }
