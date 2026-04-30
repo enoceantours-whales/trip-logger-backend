@@ -111,9 +111,22 @@ async function generatePDF(tripData) {
     const headerH = 72;
     doc.rect(0, 0, W, headerH).fill(BLACK);
 
-    doc.circle(M + 24, headerH / 2, 22).fill(WHITE);
-    doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 6, headerH/2 - 6, { lineBreak: false });
-    doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 10, headerH/2 + 2, { lineBreak: false });
+    // Logo — white circle background + real logo image
+    doc.circle(M + 24, headerH / 2, 24).fill(WHITE);
+    try {
+      const logoBuffer = await fetchURL('https://trip-logger-backend.vercel.app/public/Enocean_Tours_logo-05.png');
+      const logoSize = 40;
+      const logoX = M + 4;
+      const logoY = headerH / 2 - logoSize / 2;
+      doc.save();
+      doc.circle(M + 24, headerH/2, 22).clip();
+      doc.image(logoBuffer, logoX, logoY, { width: logoSize, height: logoSize });
+      doc.restore();
+    } catch(e) {
+      // Fallback text
+      doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 4, headerH/2 - 6, { lineBreak: false });
+      doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 8, headerH/2 + 2, { lineBreak: false });
+    }
 
     doc.fillColor(WHITE).font(bold).fontSize(18)
        .text('TRIP REPORT', 0, headerH/2 - 10, { align: 'center', width: W, lineBreak: false, characterSpacing: 3 });
