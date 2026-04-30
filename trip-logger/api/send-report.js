@@ -141,7 +141,7 @@ async function generatePDF(tripData) {
       try {
         const base64Data = tripData.photoData.replace(/^data:image\/\w+;base64,/, '');
         const photoBuffer = Buffer.from(base64Data, 'base64');
-        const photoH = pageHeight - currentY - 80; // leave room for footer
+        const photoH = 480; // fixed height, fits page 1
         doc.save();
         doc.rect(margin, currentY, contentWidth, photoH).clip();
         doc.image(photoBuffer, margin, currentY, {
@@ -150,7 +150,7 @@ async function generatePDF(tripData) {
           valign: 'center',
         });
         doc.restore();
-        currentY += photoH + 10;
+        // No currentY increment - footer is absolute positioned
       } catch (e) {
         console.error('Photo error:', e.message);
       }
