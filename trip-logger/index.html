@@ -157,7 +157,7 @@
       padding: 14px;
       margin-bottom: 20px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 8px;
     }
 
@@ -213,7 +213,7 @@
     /* ── Summary Cards ── */
     .summary-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
       margin-bottom: 16px;
     }
@@ -375,6 +375,7 @@
     <div class="status-bar">
       <div class="status-item">Status: <span>Active</span></div>
       <div class="status-item">Duration: <span id="statDuration">0m</span></div>
+      <div class="status-item">Distance: <span id="statDistance">0.00 NM</span></div>
       <div class="status-item" style="grid-column:span 2;">GPS: <span id="statGPS">Acquiring...</span></div>
     </div>
 
@@ -493,6 +494,9 @@
       lastLat: null,
       lastLng: null,
       photoData: null,
+      distanceNM: 0,
+      prevLat: null,
+      prevLng: null,
     };
   }
 
@@ -532,7 +536,19 @@
       String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   }
 
-  // ─── GPS ─────────────────────────────────────────────────────────────────────
+  // ─── Haversine Distance (NM) ─────────────────────────────────────────────────
+
+  function haversineNM(lat1, lng1, lat2, lng2) {
+    const R = 3440.065; // Earth radius in nautical miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+    // ─── GPS ─────────────────────────────────────────────────────────────────────
 
   function startGPS() {
     if (!navigator.geolocation) {
@@ -542,10 +558,27 @@
 
     gpsWatcher = navigator.geolocation.watchPosition(
       pos => {
-        trip.lastLat = pos.coords.latitude;
-        trip.lastLng = pos.coords.longitude;
+        const newLat = pos.coords.latitude;
+        const newLng = pos.coords.longitude;
+
+        // Accumulate distance
+        if (trip.prevLat !== null && trip.prevLng !== null) {
+          const d = haversineNM(trip.prevLat, trip.prevLng, newLat, newLng);
+          if (d < 0.5) { // ignore GPS jumps over 0.5 NM
+            trip.distanceNM += d;
+          }
+        }
+
+        trip.prevLat = newLat;
+        trip.prevLng = newLng;
+        trip.lastLat = newLat;
+        trip.lastLng = newLng;
+
         document.getElementById('statGPS').textContent =
-          `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+          `${newLat.toFixed(4)}, ${newLng.toFixed(4)}`;
+        document.getElementById('statDistance').textContent =
+          trip.distanceNM.toFixed(2) + ' NM';
+        saveTrip();
       },
       err => {
         document.getElementById('statGPS').textContent = 'Error — check permissions';
