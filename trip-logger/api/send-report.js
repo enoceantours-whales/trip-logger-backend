@@ -1,8 +1,9 @@
 const mailchimp = require('@mailchimp/mailchimp_marketing');
 const PDFDocument = require('pdfkit');
 const nodemailer = require('nodemailer');
+const https = require('https');
 
-// Initialize Mailchimp (list management only)
+// Initialize Mailchimp
 mailchimp.setConfig({
   apiKey: process.env.MAILCHIMP_API_KEY,
   server: process.env.MAILCHIMP_SERVER_PREFIX || 'us1',
@@ -31,11 +32,54 @@ function getFormattedDuration(startTime, endTime) {
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-function generatePDF(tripData) {
+// ─── Fetch Google Maps Static Image ──────────────────────────────────────────
+
+function fetchMapImage(sightings) {
+  return new Promise((resolve) => {
+    const sightingsWithCoords = sightings.filter(s => s.lat && s.lng);
+
+    if (sightingsWithCoords.length === 0) {
+      // Default center of Monterey Bay
+      const url = `https://maps.googleapis.com/maps/api/staticmap?center=36.8,-122.0&zoom=10&size=520x300&maptype=satellite&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+      fetchURL(url).then(resolve).catch(() => resolve(null));
+      return;
+    }
+
+    // Build markers for each sighting
+    const markers = sightingsWithCoords.map((s, i) =>
+      `markers=color:0x0ea5e9|label:${i + 1}|${s.lat},${s.lng}`
+    ).join('&');
+
+    // Center on average of sighting coords
+    const avgLat = sightingsWithCoords.reduce((sum, s) => sum + s.lat, 0) / sightingsWithCoords.length;
+    const avgLng = sightingsWithCoords.reduce((sum, s) => sum + s.lng, 0) / sightingsWithCoords.length;
+
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${avgLat},${avgLng}&zoom=11&size=520x300&maptype=satellite&${markers}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+
+    fetchURL(url).then(resolve).catch(() => resolve(null));
+  });
+}
+
+function fetchURL(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+// ─── PDF Generator ───────────────────────────────────────────────────────────
+
+async function generatePDF(tripData) {
+  const mapImageBuffer = await fetchMapImage(tripData.sightings);
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
     const chunks = [];
-    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('data', chunk => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
@@ -49,15 +93,17 @@ function generatePDF(tripData) {
     const margin = 50;
     const contentWidth = pageWidth - margin * 2;
 
-    doc.rect(0, 0, pageWidth, 120).fill(NAVY);
-    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(32).text('ENOCEAN TOURS', margin, 28, { align: 'center', width: contentWidth });
-    doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(13).text('TRIP REPORT', margin, 68, { align: 'center', width: contentWidth });
-    doc.fillColor(WHITE).font('Helvetica').fontSize(10).fillOpacity(0.75).text('Small by design. Unforgettable by nature.', margin, 90, { align: 'center', width: contentWidth });
+    // ── Header ──
+    doc.rect(0, 0, pageWidth, 110).fill(NAVY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(30).text('ENOCEAN TOURS', margin, 24, { align: 'center', width: contentWidth });
+    doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(12).text('TRIP REPORT', margin, 62, { align: 'center', width: contentWidth });
+    doc.fillColor(WHITE).font('Helvetica').fontSize(9).fillOpacity(0.7).text('Small by design. Unforgettable by nature.', margin, 82, { align: 'center', width: contentWidth });
     doc.fillOpacity(1);
 
-    const statsY = 140;
+    // ── Stats Grid ──
+    const statsY = 128;
     const cardW = (contentWidth - 15) / 2;
-    const cardH = 55;
+    const cardH = 52;
     const stats = [
       { label: 'DATE', value: new Date(tripData.startTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) },
       { label: 'DURATION', value: getFormattedDuration(tripData.startTime, tripData.endTime) },
@@ -69,53 +115,109 @@ function generatePDF(tripData) {
       const col = i % 2;
       const row = Math.floor(i / 2);
       const x = margin + col * (cardW + 15);
-      const y = statsY + row * (cardH + 10);
+      const y = statsY + row * (cardH + 8);
       doc.rect(x, y, cardW, cardH).fill(LIGHT_BLUE);
       doc.rect(x, y, 4, cardH).fill(NAVY);
-      doc.fillColor(GRAY).font('Helvetica-Bold').fontSize(8).text(stat.label, x + 12, y + 10, { width: cardW - 20 });
-      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(14).text(stat.value, x + 12, y + 24, { width: cardW - 20 });
+      doc.fillColor(GRAY).font('Helvetica-Bold').fontSize(7).text(stat.label, x + 10, y + 9, { width: cardW - 16 });
+      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(13).text(stat.value, x + 10, y + 22, { width: cardW - 16 });
     });
 
-    let currentY = statsY + 2 * (cardH + 10) + 15;
+    let currentY = statsY + 2 * (cardH + 8) + 14;
 
+    // ── Conditions ──
     if (tripData.waterTemp || tripData.visibility || tripData.conditions) {
-      doc.rect(margin, currentY, contentWidth, 36).fill(LIGHT_BLUE);
+      doc.rect(margin, currentY, contentWidth, 32).fill(LIGHT_BLUE);
       const conditions = [];
       if (tripData.waterTemp) conditions.push(`Water Temp: ${tripData.waterTemp}°F`);
       if (tripData.visibility) conditions.push(`Visibility: ${tripData.visibility}`);
-      if (tripData.conditions) conditions.push(`Sea Conditions: ${tripData.conditions}`);
-      doc.fillColor(NAVY).font('Helvetica').fontSize(10).text(conditions.join('   •   '), margin + 12, currentY + 12, { width: contentWidth - 24, align: 'center' });
-      currentY += 50;
+      if (tripData.conditions) conditions.push(`Sea: ${tripData.conditions}`);
+      doc.fillColor(NAVY).font('Helvetica').fontSize(9).text(conditions.join('   •   '), margin + 10, currentY + 11, { width: contentWidth - 20, align: 'center' });
+      currentY += 44;
     }
 
-    doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(13).text('SIGHTINGS LOG', margin, currentY);
-    currentY += 20;
+    // ── Group Photo ──
+    if (tripData.photoData) {
+      try {
+        const base64Data = tripData.photoData.replace(/^data:image\/\w+;base64,/, '');
+        const photoBuffer = Buffer.from(base64Data, 'base64');
+        const photoBoxH = 180;
+        doc.rect(margin, currentY, contentWidth, photoBoxH).fill('#000');
+        doc.image(photoBuffer, margin, currentY, {
+          width: contentWidth,
+          height: photoBoxH,
+          fit: [contentWidth, photoBoxH],
+          align: 'center',
+          valign: 'center',
+        });
+        currentY += photoBoxH + 14;
+      } catch (e) {
+        console.error('Photo error:', e.message);
+      }
+    }
 
-    const colWidths = [220, 80, 100, contentWidth - 400];
-    const colHeaders = ['SPECIES', 'COUNT', 'TIME', 'LOCATION'];
-    const rowH = 28;
+    // ── Map ──
+    if (mapImageBuffer) {
+      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(11).text('SIGHTING LOCATIONS', margin, currentY);
+      currentY += 14;
+      try {
+        doc.image(mapImageBuffer, margin, currentY, {
+          width: contentWidth,
+          height: 180,
+          fit: [contentWidth, 180],
+          align: 'center',
+          valign: 'center',
+        });
+
+        // Numbered legend
+        const sightingsWithCoords = tripData.sightings.filter(s => s.lat && s.lng);
+        if (sightingsWithCoords.length > 0) {
+          currentY += 186;
+          doc.rect(margin, currentY, contentWidth, 20).fill(LIGHT_BLUE);
+          const legendItems = sightingsWithCoords.map((s, i) => `${i + 1}. ${s.species}`).join('   ');
+          doc.fillColor(NAVY).font('Helvetica').fontSize(8).text(legendItems, margin + 8, currentY + 6, { width: contentWidth - 16 });
+          currentY += 28;
+        } else {
+          currentY += 186;
+        }
+      } catch (e) {
+        console.error('Map error:', e.message);
+        currentY += 14;
+      }
+    }
+
+    // ── Sightings Table ──
+    doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(11).text('SIGHTINGS LOG', margin, currentY);
+    currentY += 14;
+
+    const colWidths = [160, 55, 65, contentWidth - 280];
+    const colHeaders = ['SPECIES', 'COUNT', 'TIME', 'NOTES'];
+    const rowH = 26;
 
     doc.rect(margin, currentY, contentWidth, rowH).fill(NAVY);
     let colX = margin;
     colHeaders.forEach((header, i) => {
-      doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(9).text(header, colX + 8, currentY + 9, { width: colWidths[i] - 10 });
+      doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(8).text(header, colX + 7, currentY + 8, { width: colWidths[i] - 10 });
       colX += colWidths[i];
     });
     currentY += rowH;
 
     if (tripData.sightings.length === 0) {
       doc.rect(margin, currentY, contentWidth, rowH).fill(LIGHT_BLUE);
-      doc.fillColor(GRAY).font('Helvetica').fontSize(10).text('No sightings logged', margin + 8, currentY + 8);
+      doc.fillColor(GRAY).font('Helvetica').fontSize(9).text('No sightings logged', margin + 7, currentY + 8);
       currentY += rowH;
     } else {
       tripData.sightings.forEach((sighting, i) => {
         const rowColor = i % 2 === 0 ? WHITE : LIGHT_BLUE;
         doc.rect(margin, currentY, contentWidth, rowH).fill(rowColor);
-        const location = sighting.lat && sighting.lng ? `${sighting.lat.toFixed(4)}, ${sighting.lng.toFixed(4)}` : 'Monterey Bay';
-        const rowData = [sighting.species, String(sighting.count), sighting.time, location];
+        const rowData = [
+          sighting.species,
+          String(sighting.count),
+          sighting.time,
+          sighting.notes || '',
+        ];
         colX = margin;
         rowData.forEach((cell, j) => {
-          doc.fillColor(NAVY).font(j === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(10).text(cell, colX + 8, currentY + 8, { width: colWidths[j] - 10 });
+          doc.fillColor(NAVY).font(j === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).text(cell, colX + 7, currentY + 8, { width: colWidths[j] - 10 });
           colX += colWidths[j];
         });
         doc.rect(margin, currentY, contentWidth, rowH).stroke('#e2e8f0');
@@ -123,15 +225,18 @@ function generatePDF(tripData) {
       });
     }
 
-    const footerY = pageHeight - 80;
-    doc.rect(0, footerY, pageWidth, 80).fill(NAVY);
-    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(11).text('Thank you for choosing Enocean Tours', margin, footerY + 15, { align: 'center', width: contentWidth });
-    doc.fillColor(WHITE).font('Helvetica').fontSize(9).fillOpacity(0.8).text('Book your next adventure at enoceantours.com', margin, footerY + 35, { align: 'center', width: contentWidth });
-    doc.fillColor(BLUE).font('Helvetica').fontSize(8).fillOpacity(1).text('Moss Landing Harbor, Monterey Bay, CA', margin, footerY + 55, { align: 'center', width: contentWidth });
+    // ── Footer ──
+    const footerY = pageHeight - 70;
+    doc.rect(0, footerY, pageWidth, 70).fill(NAVY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(10).text('Thank you for choosing Enocean Tours', margin, footerY + 12, { align: 'center', width: contentWidth });
+    doc.fillColor(WHITE).font('Helvetica').fontSize(8).fillOpacity(0.8).text('Book your next adventure at enoceantours.com', margin, footerY + 30, { align: 'center', width: contentWidth });
+    doc.fillColor(BLUE).font('Helvetica').fontSize(7).fillOpacity(1).text('Moss Landing Harbor, Monterey Bay, CA', margin, footerY + 48, { align: 'center', width: contentWidth });
 
     doc.end();
   });
 }
+
+// ─── Mailchimp ────────────────────────────────────────────────────────────────
 
 async function addToMailchimp(email) {
   try {
@@ -142,13 +247,14 @@ async function addToMailchimp(email) {
     });
   } catch (err) {
     console.log('Mailchimp note:', err.message);
-    // Don't throw — email still sends even if Mailchimp fails
   }
 }
 
+// ─── Send Email ───────────────────────────────────────────────────────────────
+
 async function sendEmail(guestEmail, pdfBuffer, tripData) {
   const date = new Date(tripData.startTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const speciesList = tripData.sightings.map((s) => `${s.species} (×${s.count})`).join(', ') || 'No sightings logged';
+  const speciesList = tripData.sightings.map(s => `${s.species} (×${s.count})`).join(', ') || 'No sightings logged';
   const duration = getFormattedDuration(tripData.startTime, tripData.endTime);
 
   const result = await transporter.sendMail({
@@ -159,13 +265,13 @@ async function sendEmail(guestEmail, pdfBuffer, tripData) {
       <body style="font-family:Arial,sans-serif;background:#f0f9ff;margin:0;padding:40px 20px;">
         <table width="600" style="margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
           <tr><td style="background:linear-gradient(135deg,#1e3a8a,#0c4a6e);padding:40px;text-align:center;">
-            <h1 style="color:#fff;margin:0;font-size:28px;">ENOCEAN TOURS</h1>
-            <p style="color:#0ea5e9;margin:8px 0 0;">TRIP REPORT</p>
+            <h1 style="color:#fff;margin:0;font-size:28px;letter-spacing:2px;">ENOCEAN TOURS</h1>
+            <p style="color:#0ea5e9;margin:8px 0 0;font-weight:bold;">TRIP REPORT</p>
             <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:11px;">Small by design. Unforgettable by nature.</p>
           </td></tr>
           <tr><td style="padding:40px;">
             <p style="color:#0c4a6e;font-size:16px;">Hi there,</p>
-            <p style="color:#444;font-size:14px;line-height:1.6;">Thank you for joining us on the water. Your trip report PDF is attached below.</p>
+            <p style="color:#444;font-size:14px;line-height:1.6;">Thank you for joining us on the water today. Your trip report PDF is attached.</p>
             <table width="100%" style="margin:24px 0;">
               <tr>
                 <td width="48%" style="background:#f0f9ff;padding:16px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Date</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${date}</p></td>
@@ -202,6 +308,8 @@ async function sendEmail(guestEmail, pdfBuffer, tripData) {
   return result;
 }
 
+// ─── Main Handler ─────────────────────────────────────────────────────────────
+
 module.exports = async function handler(req, res) {
   setCORS(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -216,12 +324,9 @@ module.exports = async function handler(req, res) {
   try {
     console.log('Generating PDF...');
     const pdfBuffer = await generatePDF(tripData);
-    console.log('PDF generated, size:', pdfBuffer.length);
+    console.log('PDF done, size:', pdfBuffer.length);
 
-    console.log('Adding to Mailchimp...');
     await addToMailchimp(guestEmail);
-
-    console.log('Sending email via Gmail...');
     await sendEmail(guestEmail, pdfBuffer, tripData);
 
     return res.status(200).json({ success: true, message: `Trip report sent to ${guestEmail}` });
