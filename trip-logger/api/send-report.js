@@ -91,9 +91,7 @@ function fetchURL(url) {
 
 async function generatePDF(tripData) {
   const mapImageBuffer = await fetchMapImage(tripData.sightings);
-
-  // No custom font - using Helvetica-Bold
-  const antonFont = null;
+  const antonFont = null; // Using Helvetica-Bold
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -108,49 +106,47 @@ async function generatePDF(tripData) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Using built-in fonts only
-
-    const BLACK  = '#000000';
-    const WHITE  = '#ffffff';
-    const GRAY   = '#f2f2f2';
-    const MID    = '#888888';
-    const ACCENT = '#0ea5e9'; // keep blue accent for map pins/highlights only
+    const BLACK = '#000000';
+    const WHITE = '#ffffff';
+    const GRAY  = '#f2f2f2';
+    const MID   = '#888888';
+    const RULE  = '#cccccc';
 
     const W  = 612;
     const H  = 792;
-    const M  = 48;   // margin
+    const M  = 48;
     const CW = W - M * 2;
 
-    const bold   = 'Helvetica-Bold';
-    const reg    = 'Helvetica';
-    const semib  = 'Helvetica-Bold';
+    const bold  = 'Helvetica-Bold';
+    const reg   = 'Helvetica';
 
-    const date = new Date(tripData.startTime).toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-    });
+    const date     = new Date(tripData.startTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const duration = getFormattedDuration(tripData.startTime, tripData.endTime);
 
-    // ═══════════════════════════════════════════════════════════
-    // PAGE 1 — Cover + Trip Details
-    // ═══════════════════════════════════════════════════════════
+    // ── Shared: thin rule helper ──
+    function rule(y, x, w, color) {
+      doc.rect(x || M, y, w || CW, 1).fill(color || BLACK);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PAGE 1
+    // ═══════════════════════════════════════════════════════
     doc.addPage({ size: 'LETTER', margin: 0 });
 
-    // Full black header band
+    // Header
     doc.rect(0, 0, W, 130).fill(BLACK);
 
-    // Logo area — white circle
-    doc.circle(W / 2, 62, 34).fill(WHITE);
-    // We can't embed the logo image easily without fetching it, so use text placeholder
-    doc.fillColor(BLACK).font(semib).fontSize(8)
-       .text('ENOCEAN', W/2 - 22, 55, { lineBreak: false });
-    doc.fillColor(BLACK).font(semib).fontSize(6)
-       .text('TOURS', W/2 - 12, 66, { lineBreak: false });
+    // Logo circle
+    doc.circle(W / 2, 64, 34).fill(WHITE);
+    doc.fillColor(BLACK).font(bold).fontSize(8).text('ENOCEAN', W/2 - 22, 57, { lineBreak: false });
+    doc.fillColor(BLACK).font(bold).fontSize(6).text('TOURS', W/2 - 12, 68, { lineBreak: false });
 
-    doc.fillColor(WHITE).font(bold).fontSize(9).text('TRIP REPORT', M, 108, { align: 'center', width: CW, lineBreak: false });
+    doc.fillColor(WHITE).font(bold).fontSize(9)
+       .text('TRIP REPORT', M, 110, { align: 'center', width: CW, lineBreak: false, characterSpacing: 3 });
 
-    // Photo — full width, big
+    // Hero photo
     const photoY = 130;
-    const photoH = tripData.photoData ? 310 : 180;
+    const photoH = tripData.photoData ? 300 : 160;
 
     if (tripData.photoData) {
       try {
@@ -169,111 +165,120 @@ async function generatePDF(tripData) {
          .text('No group photo', 0, photoY + photoH/2 - 8, { align: 'center', width: W, lineBreak: false });
     }
 
-    // Trip info block below photo
-    let y1 = photoY + photoH + 24;
+    // Left accent rule — carries black down from header into body
+    doc.rect(M - 12, photoY + photoH, 3, H - (photoY + photoH) - 44).fill(BLACK);
 
-    // Date + Duration side by side
-    doc.fillColor(BLACK).font(bold).fontSize(22)
-       .text(date.toUpperCase(), M, y1, { lineBreak: false });
-    y1 += 28;
+    let y1 = photoY + photoH + 28; // extra padding above date
 
-    // Divider line
-    doc.rect(M, y1, CW, 1.5).fill(BLACK);
-    y1 += 12;
+    // Date
+    doc.fillColor(BLACK).font(bold).fontSize(20)
+       .text(date.toUpperCase(), M, y1, { lineBreak: false, characterSpacing: 1 });
+    y1 += 30;
 
-    // Stats row
+    // Primary divider
+    rule(y1);
+    y1 += 16; // padding below divider
+
+    // Stats row — 4 columns
     const statItems = [
-      { label: 'DURATION', value: duration },
+      { label: 'DURATION',   value: duration },
       { label: 'PASSENGERS', value: String(tripData.passengers) },
-      { label: 'SIGHTINGS', value: String(tripData.sightings.length) },
-      { label: 'WATER TEMP', value: tripData.waterTemp ? `${tripData.waterTemp}°F` : 'N/A' },
+      { label: 'SIGHTINGS',  value: String(tripData.sightings.length) },
+      { label: 'WATER TEMP', value: tripData.waterTemp ? tripData.waterTemp + '°F' : 'N/A' },
     ];
 
     const statW = CW / 4;
     statItems.forEach((stat, i) => {
       const x = M + i * statW;
       doc.fillColor(MID).font(reg).fontSize(7)
-         .text(stat.label, x, y1, { width: statW - 4, lineBreak: false });
-      doc.fillColor(BLACK).font(bold).fontSize(16)
-         .text(stat.value, x, y1 + 10, { width: statW - 4, lineBreak: false });
+         .text(stat.label, x, y1, { width: statW - 4, lineBreak: false, characterSpacing: 1.5 });
+      doc.fillColor(BLACK).font(bold).fontSize(18)
+         .text(stat.value, x, y1 + 12, { width: statW - 4, lineBreak: false });
     });
-    y1 += 44;
+    y1 += 52; // generous padding below stats
 
-    // Conditions
+    // Secondary divider
+    rule(y1);
+    y1 += 12;
+
+    // Conditions — visually tied to stats via proximity + subtle separator above
     if (tripData.visibility || tripData.conditions) {
-      doc.rect(M, y1, CW, 1).fill('#ddd');
-      y1 += 10;
-      const condParts = [];
-      if (tripData.visibility) condParts.push(`Visibility: ${tripData.visibility}`);
-      if (tripData.conditions) condParts.push(`Sea: ${tripData.conditions}`);
+      const parts = [];
+      if (tripData.visibility) parts.push('Visibility: ' + tripData.visibility);
+      if (tripData.conditions)  parts.push('Sea: ' + tripData.conditions);
       doc.fillColor(MID).font(reg).fontSize(9)
-         .text(condParts.join('   •   '), M, y1, { width: CW, lineBreak: false });
-      y1 += 20;
+         .text(parts.join('   •   '), M, y1, { width: CW, lineBreak: false, characterSpacing: 0.5 });
+      y1 += 22;
     }
+
+    // Tertiary thin rule
+    rule(y1, M, CW, RULE);
 
     // Footer
     doc.rect(0, H - 44, W, 44).fill(BLACK);
-    doc.fillColor(WHITE).font(bold).fontSize(8)
-       .text('ENOCEAN TOURS  •  MOSS LANDING HARBOR, MONTEREY BAY, CA  •  ENOCEANTOURS.COM', M, H - 27, { align: 'center', width: CW, lineBreak: false });
+    doc.fillColor(WHITE).font(bold).fontSize(7)
+       .text('ENOCEAN TOURS  •  MOSS LANDING HARBOR, MONTEREY BAY  •  ENOCEANTOURS.COM', M, H - 26, { align: 'center', width: CW, lineBreak: false, characterSpacing: 1 });
 
-    // ═══════════════════════════════════════════════════════════
-    // PAGE 2 — Map + Sightings Log
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
+    // PAGE 2
+    // ═══════════════════════════════════════════════════════
     doc.addPage({ size: 'LETTER', margin: 0 });
 
     // Header
     doc.rect(0, 0, W, 52).fill(BLACK);
-    doc.fillColor(WHITE).font(bold).fontSize(11)
-       .text('SIGHTING LOG  —  ENOCEAN TOURS', M, 18, { align: 'center', width: CW, lineBreak: false });
+    doc.fillColor(WHITE).font(bold).fontSize(10)
+       .text('SIGHTING LOG  —  ENOCEAN TOURS', M, 18, { align: 'center', width: CW, lineBreak: false, characterSpacing: 2 });
 
-    let y2 = 68;
+    // Left accent rule — carries into page 2 body
+    doc.rect(M - 12, 52, 3, H - 52 - 44).fill(BLACK);
 
-    // Section label
-    doc.fillColor(BLACK).font(bold).fontSize(13)
-       .text('SIGHTING LOCATIONS', M, y2, { lineBreak: false });
-    y2 += 16;
+    let y2 = 66;
 
-    // Map — full width high res
+    // Map section
     if (mapImageBuffer) {
-      const mapH = 230;
+      // Section heading + thin rule
+      doc.fillColor(BLACK).font(bold).fontSize(11)
+         .text('SIGHTING LOCATIONS', M, y2, { lineBreak: false, characterSpacing: 1.5 });
+      y2 += 16;
+      rule(y2);
+      y2 += 10;
+
+      const mapH = 200; // slightly reduced to avoid top-heavy feel
       try {
         doc.image(mapImageBuffer, M, y2, { width: CW, height: mapH });
-        // Legend strip
         const withCoords = tripData.sightings.filter(s => s.lat && s.lng);
-        y2 += mapH;
+        y2 += mapH + 4;
         if (withCoords.length > 0) {
           doc.rect(M, y2, CW, 22).fill(GRAY);
-          const legend = withCoords.map((s, i) => `${i + 1}  ${s.species.toUpperCase()}`).join('     ');
-          doc.fillColor(BLACK).font(semib).fontSize(7)
-             .text(legend, M + 8, y2 + 7, { width: CW - 16, lineBreak: false });
-          y2 += 30;
-        } else {
-          y2 += 12;
+          const legend = withCoords.map((s, i) => (i + 1) + '  ' + s.species.toUpperCase()).join('     ');
+          doc.fillColor(BLACK).font(bold).fontSize(7)
+             .text(legend, M + 8, y2 + 7, { width: CW - 16, lineBreak: false, characterSpacing: 0.8 });
+          y2 += 28;
         }
       } catch(e) {
         console.error('Map error:', e.message);
-        y2 += 12;
       }
+      y2 += 16;
     }
 
-    y2 += 8;
-
-    // Section label
-    doc.fillColor(BLACK).font(bold).fontSize(13)
-       .text('SIGHTINGS LOG', M, y2, { lineBreak: false });
-    y2 += 14;
+    // Sightings section heading + thin rule
+    doc.fillColor(BLACK).font(bold).fontSize(11)
+       .text('SIGHTINGS LOG', M, y2, { lineBreak: false, characterSpacing: 1.5 });
+    y2 += 16;
+    rule(y2);
+    y2 += 10;
 
     // Table
-    const cols = [175, 50, 55, CW - 280];
+    const cols   = [175, 50, 55, CW - 280];
     const headers = ['SPECIES', 'COUNT', 'TIME', 'NOTES'];
-    const rowH = 26;
+    const rowH    = 26;
 
-    // Header row — black
+    // Header row — solid black
     doc.rect(M, y2, CW, rowH).fill(BLACK);
     let cx = M;
     headers.forEach((h, i) => {
-      doc.fillColor(WHITE).font(semib).fontSize(8)
-         .text(h, cx + 8, y2 + 9, { width: cols[i] - 10, lineBreak: false });
+      doc.fillColor(WHITE).font(bold).fontSize(8)
+         .text(h, cx + 8, y2 + 9, { width: cols[i] - 10, lineBreak: false, characterSpacing: 1 });
       cx += cols[i];
     });
     y2 += rowH;
@@ -287,31 +292,33 @@ async function generatePDF(tripData) {
       tripData.sightings.forEach((s, i) => {
         const bg = i % 2 === 0 ? WHITE : GRAY;
         doc.rect(M, y2, CW, rowH).fill(bg);
-        // Left border accent
-        doc.rect(M, y2, 3, rowH).fill(BLACK);
+        doc.rect(M, y2, 3, rowH).fill(BLACK); // left accent per row
         const cells = [s.species, String(s.count), s.time, s.notes || ''];
         cx = M;
         cells.forEach((cell, j) => {
           doc.fillColor(BLACK)
-             .font(j === 0 ? semib : reg)
+             .font(j === 0 ? bold : reg)
              .fontSize(j === 0 ? 10 : 9)
              .text(j === 0 ? cell.toUpperCase() : cell, cx + 8, y2 + 8, { width: cols[j] - 12, lineBreak: false });
           cx += cols[j];
         });
-        // Bottom border
-        doc.rect(M, y2 + rowH - 1, CW, 1).fill('#e5e5e5');
+        doc.rect(M, y2 + rowH - 1, CW, 1).fill(RULE); // subtle row divider
         y2 += rowH;
       });
     }
 
+    // Bottom rule after table
+    rule(y2 + 8, M, CW, RULE);
+
     // Footer
     doc.rect(0, H - 44, W, 44).fill(BLACK);
-    doc.fillColor(WHITE).font(bold).fontSize(8)
-       .text('BOOK YOUR NEXT ADVENTURE  •  ENOCEANTOURS.COM', M, H - 27, { align: 'center', width: CW, lineBreak: false });
+    doc.fillColor(WHITE).font(bold).fontSize(7)
+       .text('BOOK YOUR NEXT ADVENTURE  •  ENOCEANTOURS.COM', M, H - 26, { align: 'center', width: CW, lineBreak: false, characterSpacing: 1 });
 
     doc.end();
   });
 }
+
 
 
 
