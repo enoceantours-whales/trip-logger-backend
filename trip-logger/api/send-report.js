@@ -34,43 +34,27 @@ function getFormattedDuration(startTime, endTime) {
 
 // ─── Fetch Google Maps Static Image ──────────────────────────────────────────
 
-function getBayZoom(sightings) {
-  if (sightings.length <= 1) return 11;
-  const lats = sightings.map(s => s.lat);
-  const lngs = sightings.map(s => s.lng);
-  const latSpan = Math.max(...lats) - Math.min(...lats);
-  const lngSpan = Math.max(...lngs) - Math.min(...lngs);
-  const span = Math.max(latSpan, lngSpan);
-  if (span > 0.3) return 9;
-  if (span > 0.15) return 10;
-  if (span > 0.07) return 11;
-  return 12;
-}
-
 function fetchMapImage(sightings) {
   return new Promise((resolve) => {
     const withCoords = sightings.filter(s => s.lat && s.lng);
 
-    // Default: full Monterey Bay view matching the canyon/coastline view
+    // Always fixed Monterey Bay view — full bay + submarine canyon visible
+    // Center: 36.78, -122.05 | Zoom 10 shows full bay from SC to Monterey
+    const CENTER = '36.78,-122.05';
+    const ZOOM   = '10';
+
     if (withCoords.length === 0) {
-      const url = `https://maps.googleapis.com/maps/api/staticmap?center=36.82,-122.05&zoom=10&size=640x400&scale=2&maptype=satellite&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+      const url = `https://maps.googleapis.com/maps/api/staticmap?center=${CENTER}&zoom=${ZOOM}&size=640x400&scale=2&maptype=satellite&key=${process.env.GOOGLE_MAPS_API_KEY}`;
       fetchURL(url).then(resolve).catch(() => resolve(null));
       return;
     }
 
-    // Dynamic zoom based on spread of sightings
-    const zoom = getBayZoom(withCoords);
-
-    // Center on average coords
-    const avgLat = withCoords.reduce((sum, s) => sum + s.lat, 0) / withCoords.length;
-    const avgLng = withCoords.reduce((sum, s) => sum + s.lng, 0) / withCoords.length;
-
-    // White markers with black labels for bold B&W aesthetic
+    // Pin sightings on the fixed bay view
     const markers = withCoords.map((s, i) =>
       `markers=color:white|label:${i + 1}|${s.lat},${s.lng}`
     ).join('&');
 
-    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${avgLat},${avgLng}&zoom=${zoom}&size=640x400&scale=2&maptype=satellite&${markers}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${CENTER}&zoom=${ZOOM}&size=640x400&scale=2&maptype=satellite&${markers}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
     fetchURL(url).then(resolve).catch(() => resolve(null));
   });
