@@ -403,6 +403,11 @@
         <input type="time" id="inputTime">
       </div>
 
+      <div class="field">
+        <label>Notes <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+        <input type="text" id="inputNotes" placeholder="e.g. Breaching, feeding on krill..." autocomplete="off">
+      </div>
+
       <button class="btn btn-primary" onclick="logSighting()">Log Sighting</button>
     </div>
 
@@ -572,6 +577,7 @@
     const species = document.getElementById('inputSpecies').value;
     const count = document.getElementById('inputCount').value;
     const time = document.getElementById('inputTime').value;
+    const notes = document.getElementById('inputNotes').value;
 
     if (!species) return toast('Select a species', 'error');
     if (!count || count < 1) return toast('Enter a count', 'error');
@@ -581,6 +587,7 @@
       species,
       count: parseInt(count),
       time,
+      notes,
       lat: trip.lastLat,
       lng: trip.lastLng,
     });
@@ -588,6 +595,7 @@
     // Reset form
     document.getElementById('inputSpecies').value = '';
     document.getElementById('inputCount').value = '1';
+    document.getElementById('inputNotes').value = '';
     setCurrentTime();
 
     renderSightingList();
@@ -675,10 +683,22 @@
 
     const reader = new FileReader();
     reader.onload = e => {
-      trip.photoData = e.target.result;
-      const preview = document.getElementById('photoPreview');
-      preview.src = trip.photoData;
-      preview.style.display = 'block';
+      // Compress image to max 1200px wide, 0.75 quality
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = 1200;
+        const scale = Math.min(1, maxW / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        trip.photoData = canvas.toDataURL('image/jpeg', 0.75);
+        const preview = document.getElementById('photoPreview');
+        preview.src = trip.photoData;
+        preview.style.display = 'block';
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
