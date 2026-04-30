@@ -452,10 +452,26 @@
     </div>
 
     <div class="section">
-      <div class="section-label">Send Report to Guest</div>
+      <div class="section-label">Send Report to Guests</div>
       <div class="field">
-        <label>Guest Email</label>
-        <input type="email" id="inputGuestEmail" placeholder="guest@email.com" inputmode="email" autocomplete="email">
+        <label>Guest 1 Email</label>
+        <input type="email" id="inputEmail1" placeholder="guest@email.com" inputmode="email" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Guest 2 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+        <input type="email" id="inputEmail2" placeholder="guest@email.com" inputmode="email" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Guest 3 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+        <input type="email" id="inputEmail3" placeholder="guest@email.com" inputmode="email" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Guest 4 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+        <input type="email" id="inputEmail4" placeholder="guest@email.com" inputmode="email" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Guest 5 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+        <input type="email" id="inputEmail5" placeholder="guest@email.com" inputmode="email" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="btnSend" onclick="sendReport()">Send Trip Report</button>
     </div>
@@ -749,32 +765,36 @@
   // ─── Send Report ─────────────────────────────────────────────────────────────
 
   async function sendReport() {
-    const email = document.getElementById('inputGuestEmail').value.trim();
-
-    if (!email) return toast('Enter guest email', 'error');
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return toast('Enter a valid email', 'error');
+
+    // Collect all filled emails
+    const emails = [1,2,3,4,5]
+      .map(n => document.getElementById('inputEmail' + n).value.trim())
+      .filter(e => e.length > 0);
+
+    if (emails.length === 0) return toast('Enter at least one email', 'error');
+
+    const invalid = emails.find(e => !emailRegex.test(e));
+    if (invalid) return toast('Invalid email: ' + invalid, 'error');
 
     const btn = document.getElementById('btnSend');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Sending...';
 
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tripData: trip,
-          guestEmail: email,
-        }),
-      });
+      // Send to all emails
+      const results = await Promise.all(emails.map(email =>
+        fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripData: trip, guestEmail: email }),
+        }).then(r => r.json())
+      ));
 
-      const result = await response.json();
+      const failed = results.filter(r => !r.success);
+      if (failed.length > 0) throw new Error('Some emails failed to send');
 
-      if (!response.ok) throw new Error(result.error || 'Failed to send');
-
-      toast('Report sent!', 'success');
+      toast(`Sent to ${emails.length} guest${emails.length > 1 ? 's' : ''}!`, 'success');
       btn.innerHTML = '✓ Report Sent';
       btn.style.background = 'var(--success)';
 
@@ -793,7 +813,7 @@
     trip = newTripState();
     document.getElementById('inputPhoto').value = '';
     document.getElementById('photoPreview').style.display = 'none';
-    document.getElementById('inputGuestEmail').value = '';
+    [1,2,3,4,5].forEach(n => document.getElementById('inputEmail' + n).value = '');
     document.getElementById('btnSend').innerHTML = 'Send Trip Report';
     document.getElementById('btnSend').disabled = false;
     document.getElementById('btnSend').style.background = '';
