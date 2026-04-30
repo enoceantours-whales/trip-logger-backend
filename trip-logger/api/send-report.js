@@ -138,49 +138,48 @@ async function generatePDF(tripData) {
     // ── Group Photo ──
     if (tripData.photoData) {
       try {
-        const base64Data = tripData.photoData.replace(/^data:image\/\w+;base64,/, '');
-        const photoBuffer = Buffer.from(base64Data, 'base64');
-        const photoBoxH = 180;
-        doc.rect(margin, currentY, contentWidth, photoBoxH).fill('#000');
+        const base64Data = tripData.photoData.replace(/^data:image\/\w+;base64,/, "");
+        const photoBuffer = Buffer.from(base64Data, "base64");
+        // Use cover to fill full width with no black bars
+        doc.save();
+        doc.rect(margin, currentY, contentWidth, 180).clip();
         doc.image(photoBuffer, margin, currentY, {
-          width: contentWidth,
-          height: photoBoxH,
-          fit: [contentWidth, photoBoxH],
-          align: 'center',
-          valign: 'center',
+          cover: [contentWidth, 180],
+          align: "center",
+          valign: "center",
         });
-        currentY += photoBoxH + 14;
+        doc.restore();
+        currentY += 180 + 14;
       } catch (e) {
-        console.error('Photo error:', e.message);
+        console.error("Photo error:", e.message);
       }
     }
 
     // ── Map ──
     if (mapImageBuffer) {
-      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(11).text('SIGHTING LOCATIONS', margin, currentY);
+      doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(11).text("SIGHTING LOCATIONS", margin, currentY);
       currentY += 14;
       try {
+        // Full width, natural height from Google Maps 520x300 aspect ratio
+        const mapHeight = Math.round(contentWidth * (300 / 520));
         doc.image(mapImageBuffer, margin, currentY, {
           width: contentWidth,
-          height: 180,
-          fit: [contentWidth, 180],
-          align: 'center',
-          valign: 'center',
+          height: mapHeight,
         });
 
         // Numbered legend
         const sightingsWithCoords = tripData.sightings.filter(s => s.lat && s.lng);
         if (sightingsWithCoords.length > 0) {
-          currentY += 186;
+          currentY += mapHeight + 6;
           doc.rect(margin, currentY, contentWidth, 20).fill(LIGHT_BLUE);
-          const legendItems = sightingsWithCoords.map((s, i) => `${i + 1}. ${s.species}`).join('   ');
-          doc.fillColor(NAVY).font('Helvetica').fontSize(8).text(legendItems, margin + 8, currentY + 6, { width: contentWidth - 16 });
+          const legendItems = sightingsWithCoords.map((s, i) => `${i + 1}. ${s.species}`).join("   ");
+          doc.fillColor(NAVY).font("Helvetica").fontSize(8).text(legendItems, margin + 8, currentY + 6, { width: contentWidth - 16 });
           currentY += 28;
         } else {
-          currentY += 186;
+          currentY += mapHeight + 14;
         }
       } catch (e) {
-        console.error('Map error:', e.message);
+        console.error("Map error:", e.message);
         currentY += 14;
       }
     }
