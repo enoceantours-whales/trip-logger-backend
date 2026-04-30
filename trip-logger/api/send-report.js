@@ -93,102 +93,119 @@ async function generatePDF(tripData) {
     const margin = 50;
     const contentWidth = pageWidth - margin * 2;
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAGE 1: Header + Stats + Conditions + Photo
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Header ──
-    doc.rect(0, 0, pageWidth, 110).fill(NAVY);
-    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(30).text('ENOCEAN TOURS', margin, 24, { align: 'center', width: contentWidth });
-    doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(12).text('TRIP REPORT', margin, 62, { align: 'center', width: contentWidth });
-    doc.fillColor(WHITE).font('Helvetica').fontSize(9).fillOpacity(0.7).text('Small by design. Unforgettable by nature.', margin, 82, { align: 'center', width: contentWidth });
+    doc.rect(0, 0, pageWidth, 100).fill(NAVY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(28).text('ENOCEAN TOURS', margin, 20, { align: 'center', width: contentWidth });
+    doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(11).text('TRIP REPORT', margin, 57, { align: 'center', width: contentWidth });
+    doc.fillColor(WHITE).font('Helvetica').fontSize(8).fillOpacity(0.7).text('Small by design. Unforgettable by nature.', margin, 76, { align: 'center', width: contentWidth });
     doc.fillOpacity(1);
 
-    // ── Stats Grid ──
-    const statsY = 128;
-    const cardW = (contentWidth - 15) / 2;
-    const cardH = 52;
+    // ── Stats Grid (4 cards in a row) ──
+    const statsY = 116;
+    const cardW = (contentWidth - 30) / 4;
+    const cardH = 48;
     const stats = [
-      { label: 'DATE', value: new Date(tripData.startTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) },
+      { label: 'DATE', value: new Date(tripData.startTime).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) },
       { label: 'DURATION', value: getFormattedDuration(tripData.startTime, tripData.endTime) },
       { label: 'PASSENGERS', value: String(tripData.passengers) },
-      { label: 'TOTAL SIGHTINGS', value: String(tripData.sightings.length) },
+      { label: 'SIGHTINGS', value: String(tripData.sightings.length) },
     ];
 
     stats.forEach((stat, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const x = margin + col * (cardW + 15);
-      const y = statsY + row * (cardH + 8);
-      doc.rect(x, y, cardW, cardH).fill(LIGHT_BLUE);
-      doc.rect(x, y, 4, cardH).fill(NAVY);
-      doc.fillColor(GRAY).font('Helvetica-Bold').fontSize(7).text(stat.label, x + 10, y + 9, { width: cardW - 16 });
-      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(13).text(stat.value, x + 10, y + 22, { width: cardW - 16 });
+      const x = margin + i * (cardW + 10);
+      doc.rect(x, statsY, cardW, cardH).fill(LIGHT_BLUE);
+      doc.rect(x, statsY, 4, cardH).fill(NAVY);
+      doc.fillColor(GRAY).font('Helvetica-Bold').fontSize(7).text(stat.label, x + 8, statsY + 8, { width: cardW - 12 });
+      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(11).text(stat.value, x + 8, statsY + 22, { width: cardW - 12 });
     });
 
-    let currentY = statsY + 2 * (cardH + 8) + 14;
+    let currentY = statsY + cardH + 10;
 
     // ── Conditions ──
     if (tripData.waterTemp || tripData.visibility || tripData.conditions) {
-      doc.rect(margin, currentY, contentWidth, 32).fill(LIGHT_BLUE);
+      doc.rect(margin, currentY, contentWidth, 28).fill(LIGHT_BLUE);
       const conditions = [];
       if (tripData.waterTemp) conditions.push(`Water Temp: ${tripData.waterTemp}°F`);
       if (tripData.visibility) conditions.push(`Visibility: ${tripData.visibility}`);
       if (tripData.conditions) conditions.push(`Sea: ${tripData.conditions}`);
-      doc.fillColor(NAVY).font('Helvetica').fontSize(9).text(conditions.join('   •   '), margin + 10, currentY + 11, { width: contentWidth - 20, align: 'center' });
-      currentY += 44;
+      doc.fillColor(NAVY).font('Helvetica').fontSize(9).text(conditions.join('   •   '), margin + 10, currentY + 9, { width: contentWidth - 20, align: 'center' });
+      currentY += 36;
     }
 
-    // ── Group Photo ──
+    // ── Group Photo (fills remaining page 1 space) ──
     if (tripData.photoData) {
       try {
-        const base64Data = tripData.photoData.replace(/^data:image\/\w+;base64,/, "");
-        const photoBuffer = Buffer.from(base64Data, "base64");
-        // Use cover to fill full width with no black bars
+        const base64Data = tripData.photoData.replace(/^data:image\/\w+;base64,/, '');
+        const photoBuffer = Buffer.from(base64Data, 'base64');
+        const photoH = pageHeight - currentY - 80; // leave room for footer
         doc.save();
-        doc.rect(margin, currentY, contentWidth, 180).clip();
+        doc.rect(margin, currentY, contentWidth, photoH).clip();
         doc.image(photoBuffer, margin, currentY, {
-          cover: [contentWidth, 180],
-          align: "center",
-          valign: "center",
+          cover: [contentWidth, photoH],
+          align: 'center',
+          valign: 'center',
         });
         doc.restore();
-        currentY += 180 + 14;
+        currentY += photoH + 10;
       } catch (e) {
-        console.error("Photo error:", e.message);
+        console.error('Photo error:', e.message);
       }
     }
 
+    // ── Page 1 Footer ──
+    const footer1Y = pageHeight - 60;
+    doc.rect(0, footer1Y, pageWidth, 60).fill(NAVY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(9).text('Thank you for choosing Enocean Tours', margin, footer1Y + 10, { align: 'center', width: contentWidth });
+    doc.fillColor(WHITE).font('Helvetica').fontSize(8).fillOpacity(0.8).text('enoceantours.com  •  Moss Landing Harbor, Monterey Bay, CA', margin, footer1Y + 28, { align: 'center', width: contentWidth });
+    doc.fillOpacity(1);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAGE 2: Map + Sightings Table
+    // ─────────────────────────────────────────────────────────────────────────
+    doc.addPage();
+
+    // ── Page 2 Header ──
+    doc.rect(0, 0, pageWidth, 50).fill(NAVY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(16).text('ENOCEAN TOURS — TRIP REPORT', margin, 16, { align: 'center', width: contentWidth });
+
+    currentY = 66;
+
     // ── Map ──
     if (mapImageBuffer) {
-      doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(11).text("SIGHTING LOCATIONS", margin, currentY);
-      currentY += 14;
+      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(11).text('SIGHTING LOCATIONS', margin, currentY);
+      currentY += 12;
       try {
-        // Full width, natural height from Google Maps 520x300 aspect ratio
-        const mapHeight = Math.round(contentWidth * (300 / 520));
+        const mapH = 220;
         doc.image(mapImageBuffer, margin, currentY, {
           width: contentWidth,
-          height: mapHeight,
+          height: mapH,
         });
-
-        // Numbered legend
+        // Legend
         const sightingsWithCoords = tripData.sightings.filter(s => s.lat && s.lng);
         if (sightingsWithCoords.length > 0) {
-          currentY += mapHeight + 6;
+          currentY += mapH + 4;
           doc.rect(margin, currentY, contentWidth, 20).fill(LIGHT_BLUE);
-          const legendItems = sightingsWithCoords.map((s, i) => `${i + 1}. ${s.species}`).join("   ");
-          doc.fillColor(NAVY).font("Helvetica").fontSize(8).text(legendItems, margin + 8, currentY + 6, { width: contentWidth - 16 });
+          const legendItems = sightingsWithCoords.map((s, i) => `${i + 1}. ${s.species}`).join('   ');
+          doc.fillColor(NAVY).font('Helvetica').fontSize(8).text(legendItems, margin + 8, currentY + 6, { width: contentWidth - 16 });
           currentY += 28;
         } else {
-          currentY += mapHeight + 14;
+          currentY += mapH + 12;
         }
       } catch (e) {
-        console.error("Map error:", e.message);
-        currentY += 14;
+        console.error('Map error:', e.message);
+        currentY += 12;
       }
     }
 
     // ── Sightings Table ──
     doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(11).text('SIGHTINGS LOG', margin, currentY);
-    currentY += 14;
+    currentY += 12;
 
-    const colWidths = [160, 55, 65, contentWidth - 280];
+    const colWidths = [160, 50, 60, contentWidth - 270];
     const colHeaders = ['SPECIES', 'COUNT', 'TIME', 'NOTES'];
     const rowH = 26;
 
@@ -208,12 +225,7 @@ async function generatePDF(tripData) {
       tripData.sightings.forEach((sighting, i) => {
         const rowColor = i % 2 === 0 ? WHITE : LIGHT_BLUE;
         doc.rect(margin, currentY, contentWidth, rowH).fill(rowColor);
-        const rowData = [
-          sighting.species,
-          String(sighting.count),
-          sighting.time,
-          sighting.notes || '',
-        ];
+        const rowData = [sighting.species, String(sighting.count), sighting.time, sighting.notes || ''];
         colX = margin;
         rowData.forEach((cell, j) => {
           doc.fillColor(NAVY).font(j === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).text(cell, colX + 7, currentY + 8, { width: colWidths[j] - 10 });
@@ -224,12 +236,12 @@ async function generatePDF(tripData) {
       });
     }
 
-    // ── Footer ──
-    const footerY = pageHeight - 70;
-    doc.rect(0, footerY, pageWidth, 70).fill(NAVY);
-    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(10).text('Thank you for choosing Enocean Tours', margin, footerY + 12, { align: 'center', width: contentWidth });
-    doc.fillColor(WHITE).font('Helvetica').fontSize(8).fillOpacity(0.8).text('Book your next adventure at enoceantours.com', margin, footerY + 30, { align: 'center', width: contentWidth });
-    doc.fillColor(BLUE).font('Helvetica').fontSize(7).fillOpacity(1).text('Moss Landing Harbor, Monterey Bay, CA', margin, footerY + 48, { align: 'center', width: contentWidth });
+    // ── Page 2 Footer ──
+    const footer2Y = pageHeight - 60;
+    doc.rect(0, footer2Y, pageWidth, 60).fill(NAVY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(9).text('Thank you for choosing Enocean Tours', margin, footer2Y + 10, { align: 'center', width: contentWidth });
+    doc.fillColor(WHITE).font('Helvetica').fontSize(8).fillOpacity(0.8).text('enoceantours.com  •  Moss Landing Harbor, Monterey Bay, CA', margin, footer2Y + 28, { align: 'center', width: contentWidth });
+    doc.fillOpacity(1);
 
     doc.end();
   });
