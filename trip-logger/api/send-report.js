@@ -44,7 +44,7 @@ function fetchMapImage(sightings) {
     const ZOOM   = '10';
 
     if (withCoords.length === 0) {
-      const url = `https://maps.googleapis.com/maps/api/staticmap?center=${CENTER}&zoom=${ZOOM}&size=640x400&scale=2&maptype=satellite&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+      const url = `https://maps.googleapis.com/maps/api/staticmap?center=${CENTER}&zoom=${ZOOM}&size=640x400&scale=2&maptype=hybrid&key=${process.env.GOOGLE_MAPS_API_KEY}`;
       fetchURL(url).then(resolve).catch(() => resolve(null));
       return;
     }
@@ -54,7 +54,7 @@ function fetchMapImage(sightings) {
       `markers=color:white|label:${i + 1}|${s.lat},${s.lng}`
     ).join('&');
 
-    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${CENTER}&zoom=${ZOOM}&size=640x400&scale=2&maptype=satellite&${markers}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${CENTER}&zoom=${ZOOM}&size=640x400&scale=2&maptype=hybrid&${markers}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
     fetchURL(url).then(resolve).catch(() => resolve(null));
   });
@@ -119,19 +119,23 @@ async function generatePDF(tripData) {
     const headerH = 72;
     doc.rect(0, 0, W, headerH).fill(BLACK);
 
-    // Logo — white circle with image, no clipping path (safer)
-    doc.circle(M + 24, headerH / 2, 24).fill(WHITE);
+    // Logo — centered in white circle
+    const logoRadius = 24;
+    const logoCX = M + logoRadius;
+    const logoCY = headerH / 2;
+    doc.circle(logoCX, logoCY, logoRadius).fill(WHITE);
     if (logoBuffer) {
       try {
-        doc.image(logoBuffer, M + 4, headerH/2 - 20, { width: 40, height: 40 });
+        const logoSize = logoRadius * 2 - 4;
+        doc.image(logoBuffer, logoCX - logoSize/2, logoCY - logoSize/2, { width: logoSize, height: logoSize });
       } catch(e) {
         console.log('Logo image error:', e.message);
-        doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 4, headerH/2 - 6, { lineBreak: false });
-        doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 8, headerH/2 + 2, { lineBreak: false });
+        doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', logoCX - 18, logoCY - 6, { lineBreak: false });
+        doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', logoCX - 12, logoCY + 2, { lineBreak: false });
       }
     } else {
-      doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 4, headerH/2 - 6, { lineBreak: false });
-      doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 8, headerH/2 + 2, { lineBreak: false });
+      doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', logoCX - 18, logoCY - 6, { lineBreak: false });
+      doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', logoCX - 12, logoCY + 2, { lineBreak: false });
     }
 
     doc.fillColor(WHITE).font(bold).fontSize(18)
