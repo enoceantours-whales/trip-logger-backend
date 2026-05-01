@@ -76,6 +76,14 @@ function fetchURL(url) {
 async function generatePDF(tripData) {
   const mapImageBuffer = await fetchMapImage(tripData.sightings);
 
+  // Fetch logo outside Promise so await works
+  let logoBuffer = null;
+  try {
+    logoBuffer = await fetchURL('https://trip-logger-backend.vercel.app/public/Enocean_Tours_logo-05.png');
+  } catch(e) {
+    console.log('Logo fetch failed:', e.message);
+  }
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       margin: 0,
@@ -113,17 +121,20 @@ async function generatePDF(tripData) {
 
     // Logo — white circle background + real logo image
     doc.circle(M + 24, headerH / 2, 24).fill(WHITE);
-    try {
-      const logoBuffer = await fetchURL('https://trip-logger-backend.vercel.app/public/Enocean_Tours_logo-05.png');
-      const logoSize = 40;
-      const logoX = M + 4;
-      const logoY = headerH / 2 - logoSize / 2;
-      doc.save();
-      doc.circle(M + 24, headerH/2, 22).clip();
-      doc.image(logoBuffer, logoX, logoY, { width: logoSize, height: logoSize });
-      doc.restore();
-    } catch(e) {
-      // Fallback text
+    if (logoBuffer) {
+      try {
+        const logoSize = 40;
+        const logoX = M + 4;
+        const logoY = headerH / 2 - logoSize / 2;
+        doc.save();
+        doc.circle(M + 24, headerH/2, 22).clip();
+        doc.image(logoBuffer, logoX, logoY, { width: logoSize, height: logoSize });
+        doc.restore();
+      } catch(e) {
+        doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 4, headerH/2 - 6, { lineBreak: false });
+        doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 8, headerH/2 + 2, { lineBreak: false });
+      }
+    } else {
       doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 4, headerH/2 - 6, { lineBreak: false });
       doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 8, headerH/2 + 2, { lineBreak: false });
     }
