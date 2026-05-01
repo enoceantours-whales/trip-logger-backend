@@ -454,24 +454,8 @@
     <div class="section">
       <div class="section-label">Send Report to Guests</div>
       <div class="field">
-        <label>Guest 1 Email</label>
-        <input type="email" id="inputEmail1" placeholder="guest@email.com" inputmode="email" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Guest 2 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-        <input type="email" id="inputEmail2" placeholder="guest@email.com" inputmode="email" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Guest 3 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-        <input type="email" id="inputEmail3" placeholder="guest@email.com" inputmode="email" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Guest 4 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-        <input type="email" id="inputEmail4" placeholder="guest@email.com" inputmode="email" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Guest 5 Email <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-        <input type="email" id="inputEmail5" placeholder="guest@email.com" inputmode="email" autocomplete="off">
+        <label>Guest Emails <span style="color:var(--muted);font-weight:400;">separate with commas</span></label>
+        <input type="text" id="inputGuestEmails" placeholder="guest1@email.com, guest2@email.com" inputmode="email" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="btnSend" onclick="sendReport()">Send Trip Report</button>
     </div>
@@ -767,22 +751,19 @@
   async function sendReport() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    // Collect all filled emails
-    const emails = [1,2,3,4,5]
-      .map(n => document.getElementById('inputEmail' + n).value.trim())
-      .filter(e => e.length > 0);
+    const raw = document.getElementById('inputGuestEmails').value;
+    const emails = raw.split(',').map(e => e.trim()).filter(e => e.length > 0);
 
     if (emails.length === 0) return toast('Enter at least one email', 'error');
 
     const invalid = emails.find(e => !emailRegex.test(e));
-    if (invalid) return toast('Invalid email: ' + invalid, 'error');
+    if (invalid) return toast('Invalid: ' + invalid, 'error');
 
     const btn = document.getElementById('btnSend');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Sending...';
 
     try {
-      // Send to all emails
       const results = await Promise.all(emails.map(email =>
         fetch(API_URL, {
           method: 'POST',
@@ -813,7 +794,7 @@
     trip = newTripState();
     document.getElementById('inputPhoto').value = '';
     document.getElementById('photoPreview').style.display = 'none';
-    [1,2,3,4,5].forEach(n => document.getElementById('inputEmail' + n).value = '');
+    document.getElementById('inputGuestEmails').value = '';
     document.getElementById('btnSend').innerHTML = 'Send Trip Report';
     document.getElementById('btnSend').disabled = false;
     document.getElementById('btnSend').style.background = '';
