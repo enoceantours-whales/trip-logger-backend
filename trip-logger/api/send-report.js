@@ -119,18 +119,13 @@ async function generatePDF(tripData) {
     const headerH = 72;
     doc.rect(0, 0, W, headerH).fill(BLACK);
 
-    // Logo — white circle background + real logo image
+    // Logo — white circle with image, no clipping path (safer)
     doc.circle(M + 24, headerH / 2, 24).fill(WHITE);
     if (logoBuffer) {
       try {
-        const logoSize = 40;
-        const logoX = M + 4;
-        const logoY = headerH / 2 - logoSize / 2;
-        doc.save();
-        doc.circle(M + 24, headerH/2, 22).clip();
-        doc.image(logoBuffer, logoX, logoY, { width: logoSize, height: logoSize });
-        doc.restore();
+        doc.image(logoBuffer, M + 4, headerH/2 - 20, { width: 40, height: 40 });
       } catch(e) {
+        console.log('Logo image error:', e.message);
         doc.fillColor(BLACK).font(bold).fontSize(6).text('ENOCEAN', M + 4, headerH/2 - 6, { lineBreak: false });
         doc.fillColor(BLACK).font(bold).fontSize(5).text('TOURS', M + 8, headerH/2 + 2, { lineBreak: false });
       }
