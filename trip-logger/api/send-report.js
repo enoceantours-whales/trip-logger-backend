@@ -1,6 +1,7 @@
 const mailchimp = require('@mailchimp/mailchimp_marketing');
 const PDFDocument = require('pdfkit');
 const nodemailer = require('nodemailer');
+const sharp = require('sharp');
 const https = require('https');
 
 // Initialize Mailchimp
@@ -291,6 +292,90 @@ async function generatePDF(tripData) {
 
 
 
+
+// ─── Social Card Generator (1080x1920 Story JPG) ─────────────────────────────
+
+async function generateSocialCard(tripData) {
+  const W = 1080;
+  const H = 1920;
+
+  // Build species list
+  const speciesList = [...new Set(tripData.sightings.map(s => s.species))];
+  const date = new Date(tripData.startTime).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  }).toUpperCase();
+
+  // Build SVG overlay with text
+  const speciesLines = speciesList.map((species, i) => 
+    `<text x="80" y="${980 + (i * 90)}" font-family="Helvetica" font-weight="bold" font-size="72" fill="white" letter-spacing="2">${species.toUpperCase()}</text>`
+  ).join('');
+
+  const svg = `
+    <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+      <!-- Dark gradient overlay -->
+      <defs>
+        <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="black" stop-opacity="0.2"/>
+          <stop offset="40%" stop-color="black" stop-opacity="0.1"/>
+          <stop offset="70%" stop-color="black" stop-opacity="0.7"/>
+          <stop offset="100%" stop-color="black" stop-opacity="0.92"/>
+        </linearGradient>
+      </defs>
+      <rect width="${W}" height="${H}" fill="url(#overlay)"/>
+
+      <!-- Top logo area -->
+      <rect x="0" y="0" width="${W}" height="140" fill="black" opacity="0.6"/>
+      <text x="${W/2}" y="88" font-family="Helvetica" font-weight="bold" font-size="36" fill="white" text-anchor="middle" letter-spacing="6">ENOCEAN TOURS</text>
+      <text x="${W/2}" y="122" font-family="Helvetica" font-size="22" fill="white" text-anchor="middle" letter-spacing="3" opacity="0.8">MONTEREY BAY</text>
+
+      <!-- TODAY WE SAW label -->
+      <text x="80" y="890" font-family="Helvetica" font-weight="bold" font-size="28" fill="white" letter-spacing="6" opacity="0.7">TODAY WE SAW</text>
+      <rect x="80" y="910" width="120" height="4" fill="white" opacity="0.6"/>
+
+      <!-- Species list -->
+      ${speciesLines}
+
+      <!-- Date -->
+      <text x="80" y="${980 + (speciesList.length * 90) + 60}" font-family="Helvetica" font-size="36" fill="white" opacity="0.7" letter-spacing="1">${date}</text>
+
+      <!-- Bottom branding -->
+      <text x="${W/2}" y="${H - 60}" font-family="Helvetica" font-weight="bold" font-size="28" fill="white" text-anchor="middle" letter-spacing="4" opacity="0.8">ENOCEANTOURS.COM</text>
+    </svg>
+  `;
+
+  try {
+    let baseImage;
+
+    if (tripData.photoData) {
+      // Use guest photo as background
+      const base64Data = tripData.photoData.replace(/^data:image\/\w+;base64,/, '');
+      const photoBuffer = Buffer.from(base64Data, 'base64');
+
+      baseImage = await sharp(photoBuffer)
+        .resize(W, H, { fit: 'cover', position: 'center' })
+        .toBuffer();
+    } else {
+      // Solid dark background if no photo
+      baseImage = await sharp({
+        create: { width: W, height: H, channels: 3, background: { r: 15, g: 23, b: 42 } }
+      }).png().toBuffer();
+    }
+
+    // Composite SVG overlay onto photo
+    const svgBuffer = Buffer.from(svg);
+    const result = await sharp(baseImage)
+      .composite([{ input: svgBuffer, top: 0, left: 0 }])
+      .jpeg({ quality: 90 })
+      .toBuffer();
+
+    return result;
+
+  } catch(e) {
+    console.error('Social card error:', e.message);
+    return null;
+  }
+}
+
 // ─── Mailchimp ────────────────────────────────────────────────────────────────
 
 async function addToMailchimp(email) {
@@ -307,7 +392,7 @@ async function addToMailchimp(email) {
 
 // ─── Send Email ───────────────────────────────────────────────────────────────
 
-async function sendEmail(guestEmail, pdfBuffer, tripData) {
+async function sendEmail(guestEmail, pdfBuffer, socialCardBuffer, tripData) {
   const date = new Date(tripData.startTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const speciesList = tripData.sightings.map(s => `${s.species} (×${s.count})`).join(', ') || 'No sightings logged';
   const duration = getFormattedDuration(tripData.startTime, tripData.endTime);
@@ -352,11 +437,18 @@ async function sendEmail(guestEmail, pdfBuffer, tripData) {
         </table>
       </body>
     `,
-    attachments: [{
-      filename: `Enocean_Trip_${new Date(tripData.startTime).toISOString().split('T')[0]}.pdf`,
-      content: pdfBuffer,
-      contentType: 'application/pdf',
-    }],
+    attachments: [
+      {
+        filename: `Enocean_Trip_${new Date(tripData.startTime).toISOString().split('T')[0]}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+      ...(socialCardBuffer ? [{
+        filename: `Enocean_Story_${new Date(tripData.startTime).toISOString().split('T')[0]}.jpg`,
+        content: socialCardBuffer,
+        contentType: 'image/jpeg',
+      }] : []),
+    ],
   });
 
   console.log('Gmail sent:', result.messageId);
@@ -381,8 +473,12 @@ module.exports = async function handler(req, res) {
     const pdfBuffer = await generatePDF(tripData);
     console.log('PDF done, size:', pdfBuffer.length);
 
+    console.log('Generating social card...');
+    const socialCardBuffer = await generateSocialCard(tripData);
+    console.log('Social card done:', socialCardBuffer ? socialCardBuffer.length : 'failed');
+
     await addToMailchimp(guestEmail);
-    await sendEmail(guestEmail, pdfBuffer, tripData);
+    await sendEmail(guestEmail, pdfBuffer, socialCardBuffer, tripData);
 
     return res.status(200).json({ success: true, message: `Trip report sent to ${guestEmail}` });
   } catch (err) {
