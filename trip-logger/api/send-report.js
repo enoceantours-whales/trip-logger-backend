@@ -315,43 +315,41 @@ async function sendEmail(guestEmail, pdfBuffer, socialCardData, tripData) {
     from: `"Enocean Tours" <${process.env.GMAIL_USER}>`,
     to: guestEmail,
     subject: `Your Enocean Tours Trip Report — ${date}`,
-    html: `
-      <body style="font-family:Arial,sans-serif;background:#f0f9ff;margin:0;padding:40px 20px;">
-        <table width="600" style="margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
-          <tr><td style="background:linear-gradient(135deg,#1e3a8a,#0c4a6e);padding:40px;text-align:center;">
-            <h1 style="color:#fff;margin:0;font-size:28px;letter-spacing:2px;">ENOCEAN TOURS</h1>
-            <p style="color:#0ea5e9;margin:8px 0 0;font-weight:bold;">TRIP REPORT</p>
-            <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:11px;">Small by design. Unforgettable by nature.</p>
-          </td></tr>
-          <tr><td style="padding:40px;">
-            <p style="color:#0c4a6e;font-size:16px;">Hi there,</p>
-            <p style="color:#444;font-size:14px;line-height:1.6;">Thank you for joining us on the water today. Your trip report PDF is attached.</p>
-            <table width="100%" style="margin:24px 0;">
-              <tr>
-                <td width="48%" style="background:#f0f9ff;padding:16px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Date</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${date}</p></td>
-                <td width="4%"></td>
-                <td width="48%" style="background:#f0f9ff;padding:16px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Duration</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${duration}</p></td>
-              </tr>
-              <tr><td colspan="3" style="height:12px;"></td></tr>
-              <tr>
-                <td width="48%" style="background:#f0f9ff;padding:16px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Passengers</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${tripData.passengers}</p></td>
-                <td width="4%"></td>
-                <td width="48%" style="background:#f0f9ff;padding:16px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Sightings</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${tripData.sightings.length}</p></td>
-              </tr>
-            </table>
-            <div style="background:#f0f9ff;padding:16px;border-radius:4px;margin-bottom:24px;">
-              <p style="margin:0 0 8px;color:#0c4a6e;font-weight:bold;font-size:12px;text-transform:uppercase;">What We Saw</p>
-              <p style="margin:0;color:#444;font-size:14px;">${speciesList}</p>
-            </div>
-            <div style="text-align:center;margin:32px 0;">
-              <a href="https://enoceantours.com" style="background:#0c4a6e;color:#fff;padding:14px 32px;text-decoration:none;border-radius:4px;font-weight:bold;">Book Your Next Trip</a>
-            </div>
-            <p style="color:#94a3b8;font-size:12px;text-align:center;">Moss Landing Harbor, Monterey Bay, CA<br><a href="https://enoceantours.com" style="color:#0ea5e9;">enoceantours.com</a></p>
-          </td></tr>
-        </table>
-      </body>
-    `,
-    attachments: [
+    html: `<body style="margin:0;padding:0;background:#f0f9ff;font-family:Arial,sans-serif;">
+<table width="600" style="margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+  <tr><td style="background:#0c4a6e;padding:32px;text-align:center;">
+    <h1 style="color:#fff;margin:0;font-size:26px;letter-spacing:2px;">ENOCEAN TOURS</h1>
+    <p style="color:#0ea5e9;margin:8px 0 0;font-weight:bold;font-size:13px;">TRIP REPORT</p>
+  </td></tr>
+  <tr><td style="padding:32px;">
+    <p style="color:#0c4a6e;font-size:15px;margin:0 0 12px;">Hi there,</p>
+    <p style="color:#444;font-size:14px;line-height:1.6;margin:0 0 24px;">Thank you for joining us on the water. Your trip report and story card are attached.</p>
+    <table width="100%" style="margin-bottom:24px;">
+      <tr>
+        <td width="48%" style="background:#f0f9ff;padding:14px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Date</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${date}</p></td>
+        <td width="4%"></td>
+        <td width="48%" style="background:#f0f9ff;padding:14px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Duration</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${duration}</p></td>
+      </tr>
+      <tr><td colspan="3" style="height:10px;"></td></tr>
+      <tr>
+        <td width="48%" style="background:#f0f9ff;padding:14px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Passengers</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${tripData.passengers}</p></td>
+        <td width="4%"></td>
+        <td width="48%" style="background:#f0f9ff;padding:14px;border-left:4px solid #0c4a6e;"><p style="margin:0;color:#64748b;font-size:10px;font-weight:bold;text-transform:uppercase;">Sightings</p><p style="margin:4px 0 0;color:#0c4a6e;font-weight:bold;">${tripData.sightings.length}</p></td>
+      </tr>
+    </table>
+    <div style="background:#f0f9ff;padding:14px;border-radius:4px;margin-bottom:28px;">
+      <p style="margin:0 0 6px;color:#0c4a6e;font-weight:bold;font-size:11px;text-transform:uppercase;">What We Saw</p>
+      <p style="margin:0;color:#444;font-size:14px;">${speciesList}</p>
+    </div>
+    <div style="text-align:center;margin-bottom:24px;">
+      <a href="https://www.tripadvisor.com/UserReviewEdit-g32748-d34278154-Enocean_Tours-Moss_Landing_California.html" style="background:#0c4a6e;color:#fff;padding:14px 36px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;display:inline-block;">Leave Us a Review</a>
+      <p style="margin:10px 0 0;color:#94a3b8;font-size:12px;">It takes 2 minutes and means the world to us.</p>
+    </div>
+    <p style="color:#94a3b8;font-size:12px;text-align:center;margin:0;">Moss Landing Harbor, Monterey Bay, CA<br><a href="https://enoceantours.com" style="color:#0ea5e9;">enoceantours.com</a></p>
+  </td></tr>
+</table>
+</body>`,
+        attachments: [
       {
         filename: `Enocean_Trip_${new Date(tripData.startTime).toISOString().split('T')[0]}.pdf`,
         content: pdfBuffer,
