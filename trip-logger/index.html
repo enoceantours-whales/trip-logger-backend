@@ -746,6 +746,138 @@
     reader.readAsDataURL(file);
   }
 
+
+  // ─── Social Card Generator (Browser Canvas) ──────────────────────────────────
+
+  async function generateSocialCard() {
+    return new Promise((resolve) => {
+      const W = 1080;
+      const H = 1920;
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      const speciesList = [...new Set(trip.sightings.map(s => s.species))];
+      const date = new Date(trip.startTime).toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+      }).toUpperCase();
+
+      const drawCard = () => {
+        // Gradient overlay
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, 'rgba(0,0,0,0.35)');
+        grad.addColorStop(0.4, 'rgba(0,0,0,0.05)');
+        grad.addColorStop(0.65, 'rgba(0,0,0,0.65)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.95)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        // Top bar
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, 0, W, 160);
+
+        // Top divider line
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(80, 160);
+        ctx.lineTo(W - 80, 160);
+        ctx.stroke();
+
+        // ENOCEAN TOURS
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 52px -apple-system, BlinkMacSystemFont, Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('ENOCEAN TOURS', W / 2, 96);
+
+        // Subtitle
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = '28px -apple-system, BlinkMacSystemFont, Arial, sans-serif';
+        ctx.fillText('MONTEREY BAY, CALIFORNIA', W / 2, 140);
+
+        // TODAY WE SAW
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '32px -apple-system, BlinkMacSystemFont, Arial, sans-serif';
+        ctx.fillText('TODAY WE SAW', 80, 900);
+
+        // Underline
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillRect(80, 916, 120, 3);
+
+        // Species list
+        speciesList.forEach((species, i) => {
+          const y = 960 + (i * 110);
+
+          // Row bg
+          ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.07)' : 'transparent';
+          ctx.fillRect(80, y - 20, W - 160, 90);
+
+          // Left accent bar
+          ctx.fillStyle = 'white';
+          ctx.fillRect(80, y - 20, 5, 90);
+
+          // Species text
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 66px -apple-system, BlinkMacSystemFont, Arial, sans-serif';
+          ctx.fillText(species.toUpperCase(), 104, y + 46);
+        });
+
+        // Date
+        const dateY = 960 + (speciesList.length * 110) + 80;
+        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        ctx.font = '36px -apple-system, BlinkMacSystemFont, Arial, sans-serif';
+        ctx.fillText(date, 80, dateY);
+
+        // Bottom bar
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, H - 110, W, 110);
+
+        // Top divider of bottom bar
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(80, H - 110);
+        ctx.lineTo(W - 80, H - 110);
+        ctx.stroke();
+
+        // ENOCEANTOURS.COM
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 34px -apple-system, BlinkMacSystemFont, Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('ENOCEANTOURS.COM', W / 2, H - 48);
+
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      };
+
+      // Draw with photo background if available
+      if (trip.photoData) {
+        const img = new Image();
+        img.onload = () => {
+          // Cover fit
+          const scale = Math.max(W / img.width, H / img.height);
+          const sw = img.width * scale;
+          const sh = img.height * scale;
+          const sx = (W - sw) / 2;
+          const sy = (H - sh) / 2;
+          ctx.drawImage(img, sx, sy, sw, sh);
+          drawCard();
+        };
+        img.onerror = () => {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(0, 0, W, H);
+          drawCard();
+        };
+        img.src = trip.photoData;
+      } else {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, W, H);
+        drawCard();
+      }
+    });
+  }
+
   // ─── Send Report ─────────────────────────────────────────────────────────────
 
   async function sendReport() {
@@ -764,11 +896,14 @@
     btn.innerHTML = '<span class="spinner"></span>Sending...';
 
     try {
+      // Generate social card in browser
+      const socialCardData = await generateSocialCard();
+
       const results = await Promise.all(emails.map(email =>
         fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripData: trip, guestEmail: email }),
+          body: JSON.stringify({ tripData: trip, guestEmail: email, socialCardData }),
         }).then(r => r.json())
       ));
 
